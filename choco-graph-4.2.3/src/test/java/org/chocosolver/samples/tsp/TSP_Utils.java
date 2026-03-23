@@ -125,7 +125,7 @@ public class TSP_Utils {
     }
 
     public static int getOptimum(String s, String url) {
-        /*File file = new File(url);
+        File file = new File(url);
         try {
             BufferedReader buf = new BufferedReader(new FileReader(file));
             String line = buf.readLine();
@@ -137,8 +137,7 @@ public class TSP_Utils {
             e.printStackTrace();
             System.exit(0);
         }
-        throw new UnsupportedOperationException("could not load optimum");*/
-        return 1000000000;
+        throw new UnsupportedOperationException("could not load optimum");
     }
 
     private static void coordinates(int[][] dist, BufferedReader buf, String type) throws IOException {

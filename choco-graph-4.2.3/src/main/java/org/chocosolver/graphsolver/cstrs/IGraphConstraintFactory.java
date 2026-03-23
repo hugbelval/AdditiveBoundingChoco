@@ -43,6 +43,7 @@ import org.chocosolver.graphsolver.cstrs.cost.trees.PropTreeCostSimple;
 import org.chocosolver.graphsolver.cstrs.cost.trees.lagrangianRelaxation.PropLagr_DCMST_generic;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.PropCycleCostSimple;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusion;
+import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionASym;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropLagr_OneTree;
 import org.chocosolver.graphsolver.cstrs.cycles.*;
 import org.chocosolver.graphsolver.cstrs.degree.*;
@@ -1084,8 +1085,8 @@ public interface IGraphConstraintFactory {
 	 * @return a tsp constraint
 	 */
 	default Constraint tsp(UndirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, int LAGR_MODE) {
-		Propagator[] props = ArrayUtils.append(hamiltonianCycle(GRAPHVAR).getPropagators(),
-				new Propagator[]{new PropCycleCostSimple(GRAPHVAR, COSTVAR, EDGE_COSTS)});
+		Propagator[] props = ArrayUtils.append(hamiltonianCycle(GRAPHVAR).getPropagators());//,
+				//new Propagator[]{new PropCycleCostSimple(GRAPHVAR, COSTVAR, EDGE_COSTS)});
 		if (LAGR_MODE > 0) {
 			PropLagr_OneTree hk = new PropLagr_OneTree(GRAPHVAR, COSTVAR, EDGE_COSTS);
 			hk.waitFirstSolution(LAGR_MODE == 2);
@@ -1096,11 +1097,21 @@ public interface IGraphConstraintFactory {
 
 
 	default Constraint tsp_fusion(UndirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS) {
-		Propagator[] props = ArrayUtils.append(hamiltonianCycle(GRAPHVAR).getPropagators(),
-				new Propagator[]{new PropCycleCostSimple(GRAPHVAR, COSTVAR, EDGE_COSTS)});
+		Propagator[] props = ArrayUtils.append(hamiltonianCycle(GRAPHVAR).getPropagators());//,
+				//new Propagator[]{new PropCycleCostSimple(GRAPHVAR, COSTVAR, EDGE_COSTS)});
 		PropFusion fusion = new PropFusion(GRAPHVAR, COSTVAR, EDGE_COSTS);
 		fusion.waitFirstSolution(false);
+		//props = new Propagator[]{};
 		props = ArrayUtils.append(props, new Propagator[]{fusion});
+		return new Constraint("TSPFusion", props);
+	}
+
+
+	default Constraint tsp_fusion_asym(DirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS) {
+		PropFusionASym fusion = new PropFusionASym(GRAPHVAR, COSTVAR, EDGE_COSTS);
+		fusion.waitFirstSolution(false);
+		// Manque juste propCostSimple
+		Propagator[] props =ArrayUtils.append(hamiltonianCircuit(GRAPHVAR).getPropagators(), new Propagator[]{fusion});
 		return new Constraint("TSPFusion", props);
 	}
 

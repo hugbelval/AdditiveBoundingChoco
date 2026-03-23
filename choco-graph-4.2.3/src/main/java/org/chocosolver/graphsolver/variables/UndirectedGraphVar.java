@@ -53,7 +53,7 @@ public class UndirectedGraphVar extends GraphVar<UndirectedGraph> {
 	public UndirectedGraphVar(String name, Model solver, UndirectedGraph LB, UndirectedGraph UB) {
 		super(name, solver, LB, UB);
 	}
-
+	public int removed = 0;
 	//***********************************************************************************
 	// METHODS
 	//***********************************************************************************
@@ -72,6 +72,7 @@ public class UndirectedGraphVar extends GraphVar<UndirectedGraph> {
 			}
 			GraphEventType e = GraphEventType.REMOVE_ARC;
 			notifyPropagators(e, cause);
+			removed++;
 			return true;
 		}
 		return false;

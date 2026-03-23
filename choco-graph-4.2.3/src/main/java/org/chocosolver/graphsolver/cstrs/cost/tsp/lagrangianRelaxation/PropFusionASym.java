@@ -30,15 +30,18 @@ package org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation;
 import gnu.trove.list.array.TIntArrayList;
 import org.chocosolver.graphsolver.cstrs.cost.GraphLagrangianRelaxation;
 import org.chocosolver.graphsolver.cstrs.cost.trees.lagrangianRelaxation.AbstractTreeFinder;
+import org.chocosolver.graphsolver.variables.DirectedGraphVar;
 import org.chocosolver.graphsolver.variables.GraphEventType;
 import org.chocosolver.graphsolver.variables.UndirectedGraphVar;
 import org.chocosolver.solver.constraints.Propagator;
 import org.chocosolver.solver.constraints.PropagatorPriority;
+import org.chocosolver.solver.constraints.nary.nValue.amnv.rules.R;
 import org.chocosolver.solver.exception.ContradictionException;
 import org.chocosolver.solver.variables.IntVar;
 import org.chocosolver.solver.variables.Variable;
 import org.chocosolver.solver.variables.events.IntEventType;
 import org.chocosolver.util.ESat;
+import org.chocosolver.util.objects.graphs.DirectedGraph;
 import org.chocosolver.util.objects.graphs.UndirectedGraph;
 import org.chocosolver.util.objects.setDataStructures.ISet;
 
@@ -58,14 +61,14 @@ import java.util.Set;
  *
  * @author Jean-Guillaume Fages
  */
-public class PropFusion extends Propagator<Variable> implements GraphLagrangianRelaxation {
+public class PropFusionASym extends Propagator<Variable> implements GraphLagrangianRelaxation {
 
 	//***********************************************************************************
 	// VARIABLES
 	//***********************************************************************************
 
-	protected UndirectedGraph g;
-	protected UndirectedGraphVar gV;
+	protected DirectedGraph g;
+	protected DirectedGraphVar gV;
 	protected IntVar costVar;
 	protected int n;
 	protected int[][] originalCosts;
@@ -101,15 +104,14 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 			for (int j = 0; j < m; j++)
 				min = Math.min(min, costs[i][j]);
 
-			lb += min*2;
+			lb += min;
 			for (int j = 0; j < m; j++) {
 				costs[i][j] -= min;
-				costs[j][i] -= min;
 			}
 		}
 
 		// Subtract minimum value from each column
-		/*for (int j = 0; j < m; j++) {
+		for (int j = 0; j < m; j++) {
 			double min = Double.POSITIVE_INFINITY;
 			for (int i = 0; i < n; i++)
 				min = Math.min(min, costs[i][j]);
@@ -117,7 +119,7 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 			lb += min;
 			for (int i = 0; i < n; i++)
 				costs[i][j] -= min;
-		}*/
+		}
 
 		int[][] zeros = new int[n][m]; // 0 = empty, 1 = star, 2 = prime
 		boolean[] rowCovered = new boolean[n];
@@ -319,12 +321,26 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 		return null;  // no cycle found
 	}
 
+	public void basicFiltering(double lowerBound) throws ContradictionException {
+		double delta = costVar.getUB() - lowerBound;
+		for (int i = 0; i < n; i++) {
+			for (int j = 0; j < n; j++) {
+				if (i != j && reducedCosts[i][j] > delta) {
+					reducedCosts[i][j] = bigValue;
+					remove(i, j);
+				}
+			}
+		}
+	}
 
 	public static Result edmondsIteration(
 			double[][] matrix,
 			boolean incrementZeros,
 			int[][] starZeros
 	) {
+		if(starZeros == null){
+			return new Result(0, matrix, null);
+		}
 
 		int n = matrix.length;
 		double lb = 0;
@@ -383,31 +399,23 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 			for (int i = 0; i < edges.length; i++)
 				for (int j = 0; j < edges[0].length; j++)
 					if (cycleEdgesMask[i][j])
-						minimumCandidates.add(matrix[i][j]);
+						minimumCandidates.add(matrix[i+1][j+1]);
 
 			double minimum = Collections.min(minimumCandidates);
 
+			//Check if there's at least one non-zero
 			if (incrementZeros && minimum == 0) {
 
 				for (int i = 0; i < n; i++)
-					matrix[i][i] = bigValue;
-
-				double newMin = Double.POSITIVE_INFINITY;
-				for (int i = 0; i < n; i++)
 					for (int j = 0; j < n; j++)
-						if (matrix[i][j] != 0)
-							newMin = Math.min(newMin, matrix[i][j]);
-
-				minimum = (newMin == bigValue) ? 0 : 1;
+						if (i != j && matrix[i][j] != 0)
+							minimum = 1;
 			}
 
-			for (int i = 0; i < edges.length; i++) {
-				for (int j = 0; j < cycle.size(); j++) {
-					int col = cycle.get(j);
-					if (!cycleEdgesMask[i][col]) {
-						matrix[i][col] += minimum;
-					}
-				}
+			for (int i = 0; i < cycle.size(); i++) {
+				int from = cycle.get(i);
+				int to = cycle.get((i + 1) % cycle.size());
+				matrix[from+1][to+1] += minimum;
 			}
 
 			double boundChange = minimum * (cycle.size() - 1);
@@ -418,7 +426,7 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 	}
 
 	////////////////////////////////////////
-	protected PropFusion(Variable[] vars, int[][] costMatrix) {
+	protected PropFusionASym(Variable[] vars, int[][] costMatrix) {
 		super(vars, PropagatorPriority.CUBIC, false);
 		n = costMatrix.length;
 		originalCosts = costMatrix;
@@ -432,7 +440,7 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 		HKfilter = new KruskalOneTree_GAC(n, this);
 	}
 
-	public PropFusion(UndirectedGraphVar graph, IntVar cost, int[][] costMatrix) {
+	public PropFusionASym(DirectedGraphVar graph, IntVar cost, int[][] costMatrix) {
 		this(new Variable[]{graph, cost}, costMatrix);
 		g = graph.getUB();
 		gV = graph;
@@ -462,9 +470,9 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 		int lb;
 		do {
 			lb = costVar.getLB();
-			fusionRelaxation();
+			fusionRelaxationAsym();
 		} while (lb < costVar.getLB());
-		System.out.println("removed " + gV.removed);
+		//System.out.println("removed " + gV.removed);
 	}
 
 	private void fillReducedCosts(){
@@ -482,7 +490,7 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 		}
 	}
 
-	protected void fusionRelaxation() throws ContradictionException {
+	protected void fusionRelaxationAsym() throws ContradictionException {
 		double lowerBound;
 		double alpha = 2;
 		double beta = 0.5;
@@ -492,108 +500,44 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 		lowerBound = result.lb;
 		reducedCosts = result.array;
 
-		HKfilter.computeMST(reducedCosts, g);
-		HKfilter.performPruning((double) (costVar.getUB()) + totalPenalities + 0.001 - lowerBound); //- lowerBound est très important, pour additive bounding
-		lowerBound += HKfilter.getBound() - totalPenalities;
+		result = edmondsIteration(reducedCosts, true, result.zeros);
+		lowerBound += result.lb;
+		basicFiltering(lowerBound);
 		maxLb = lowerBound;
-		mst = HKfilter.getMST();
 		if (lowerBound - Math.floor(lowerBound) < 0.001) {
 			lowerBound = Math.floor(lowerBound);
 		}
 		costVar.updateLowerBound((int) Math.ceil(lowerBound), this);
 		double oldBound = 0;
-		if(lowerBound > oldBound){	//	for (int iter = 15; iter > 0; iter--) {
+		if(lowerBound > oldBound) {    //	for (int iter = 15; iter > 0; iter--) {
 			for (int i = nbSprints; i > 0; i--) {
-				fillReducedCosts();
 				result = hungarianIteration(reducedCosts);
 				lowerBound += result.lb;
 				reducedCosts = result.array;
 
-				HKfilter.computeMST(result.array, g);
-				HKfilter.performPruning((double) (costVar.getUB()) + 0.001 - lowerBound);
-				lowerBound += HK.getBound() - totalPenalities;
-				if (lowerBound > maxLb + 1) {
+				result = edmondsIteration(reducedCosts, true, result.zeros);
+				lowerBound += result.lb;
+				basicFiltering(lowerBound);
+				if (lowerBound > maxLb) {
 					maxLb = lowerBound;
 				}
-				mst = HKfilter.getMST();
 				if (lowerBound - Math.floor(lowerBound) < 0.001) {
 					lowerBound = Math.floor(lowerBound);
 				}
 				costVar.updateLowerBound((int) Math.ceil(lowerBound), this);
-				fillReducedCosts();
+				//fillReducedCosts();
 			}
-			HKfilter.computeMST(reducedCosts, g);
-			HKfilter.performPruning((double) (costVar.getUB())+ 0.001 - lowerBound);
-			lowerBound += HKfilter.getBound() - totalPenalities;
+			result = edmondsIteration(reducedCosts, true, result.zeros);
+			lowerBound += result.lb;
+			basicFiltering(lowerBound);
 			if (lowerBound > maxLb + 1) {
 				maxLb = lowerBound;
 			}
-			mst = HKfilter.getMST();
 			if (lowerBound - Math.floor(lowerBound) < 0.001) {
 				lowerBound = Math.floor(lowerBound);
 			}
 			costVar.updateLowerBound((int) Math.ceil(lowerBound), this);
 			//System.out.println(lowerBound);
-		}
-	}
-
-	protected void fusionRelaxationAsym() throws ContradictionException {
-		double lowerBound = 0; // Held-Karp Bound
-		double alpha = 2;
-		double beta = 0.5;
-		double maxLb;
-		maxLb = 0;
-		Result result = null;
-
-		result = hungarianIteration(costs);
-		lowerBound += result.lb;
-
-		maxLb = lowerBound;
-		result = edmondsIteration(costs, true, result.zeros);
-		lowerBound += result.lb;
-
-		if (lowerBound - Math.floor(lowerBound) < 0.001) {
-			lowerBound = Math.floor(lowerBound);
-		}
-
-		costVar.updateLowerBound((int) Math.ceil(lowerBound), this); // Update la borne
-		//TODO do pruning for asymmetric
-
-		//HKfilter.performPruning((double) (costVar.getUB()) + totalPenalities + 0.001); // Filtre arètes
-		for (int iter = 5; iter > 0; iter--) {
-			for (int i = nbSprints; i > 0; i--) {
-				HK.computeMST(costs, g);
-				lowerBound = HK.getBound() - totalPenalities;
-				if (lowerBound > maxLb + 1) {
-					maxLb = lowerBound;
-				}
-				mst = HK.getMST();
-				if (lowerBound - Math.floor(lowerBound) < 0.001) {
-					lowerBound = Math.floor(lowerBound);
-				}
-				costVar.updateLowerBound((int) Math.ceil(lowerBound), this);
-				// HK.performPruning((double) (obj.getUB()) + totalPenalities + 0.001);
-				//	DO NOT FILTER HERE TO SPEED UP CONVERGENCE (not always true)
-				updateStep(lowerBound, alpha); // Update la variable step qui est utilisée dans HKPenalities
-				HKPenalities();
-				updateCostMatrix();
-			}
-			HKfilter.computeMST(costs, g);
-			lowerBound = HKfilter.getBound() - totalPenalities;
-			if (lowerBound > maxLb + 1) {
-				maxLb = lowerBound;
-			}
-			mst = HKfilter.getMST();
-			if (lowerBound - Math.floor(lowerBound) < 0.001) {
-				lowerBound = Math.floor(lowerBound);
-			}
-			costVar.updateLowerBound((int) Math.ceil(lowerBound), this);
-			HKfilter.performPruning((double) (costVar.getUB()) + totalPenalities + 0.001); //Fais juste le pruning après les 30 sprints
-			updateStep(lowerBound, alpha);
-			HKPenalities();
-			updateCostMatrix();
-			alpha *= beta;
-			beta /= 2;
 		}
 	}
 
@@ -609,7 +553,7 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 		mandatoryArcsList.clear();
 		ISet nei;
 		for (int i = 0; i < n; i++) {
-			nei = gV.getMandNeighOf(i);
+			nei = gV.getMandSuccOf(i);
 			for (int j : nei) {
 				if (i < j) {
 					mandatoryArcsList.add(i * n + j);
@@ -619,22 +563,16 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 	}
 
 	protected void setCosts() {
-		ISet nei;
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < n; j++) {
-				if (i < j) {
-					if(g.edgeExists(i, j)){
-						costs[i][j] = originalCosts[i][j];
-						costs[j][i] = costs[i][j];
-					}
-					else {
-						costs[i][j] = bigValue;
-						costs[j][i] = bigValue;
-					}
+				if(i != j && g.arcExists(i, j)){
+					costs[i][j] = originalCosts[i][j];
+				}
+				else {
+					costs[i][j] = bigValue;
 				}
 			}
 		}
-		fillDiagonal(costs, bigValue);
 	}
 
 	protected void updateStep(double hkb, double alpha) {
@@ -669,19 +607,6 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 			sumPenalities += penalities[i];
 		}
 		this.totalPenalities = 2 * sumPenalities;
-	}
-
-	protected void updateCostMatrix() {
-		ISet nei;
-		for (int i = 0; i < n; i++) {
-			nei = g.getNeighOf(i);
-			for (int j : nei) {
-				if (i < j) {
-					costs[i][j] = originalCosts[i][j] + penalities[i] + penalities[j];
-					costs[j][i] = costs[i][j];
-				}
-			}
-		}
 	}
 
 	//***********************************************************************************
@@ -727,7 +652,7 @@ public class PropFusion extends Propagator<Variable> implements GraphLagrangianR
 	}
 
 	public boolean isMandatory(int i, int j) {
-		return gV.getMandNeighOf(i).contains(j);
+		return gV.getMandSuccOf(i).contains(j);
 	}
 
 	public void waitFirstSolution(boolean b) {

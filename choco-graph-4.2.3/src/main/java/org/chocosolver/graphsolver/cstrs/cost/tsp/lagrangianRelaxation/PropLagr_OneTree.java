@@ -110,6 +110,8 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 			lb = obj.getLB();
 			lagrangianRelaxation();
 		} while (lb < obj.getLB());
+
+	//System.out.println("removed " + gV.removed);
 	}
 
 	protected void lagrangianRelaxation() throws ContradictionException {
@@ -161,6 +163,7 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 			updateCostMatrix();
 			alpha *= beta;
 			beta /= 2;
+			//System.out.println(hkb);
 		}
 	}
 

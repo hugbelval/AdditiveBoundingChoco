@@ -67,7 +67,8 @@ public class KruskalOneTree_GAC extends KruskalMSTFinder {
 	public void performPruning(double UB) throws ContradictionException {
 		double delta = UB - treeCost;
 		if (delta < 0) {
-			throw new UnsupportedOperationException("mst>ub");
+			throw new ContradictionException();
+			//throw new UnsupportedOperationException("mst>ub");
 		}
 		prepareMandArcDetection();
 		if (selectRelevantArcs(delta)) {
