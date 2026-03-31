@@ -83,6 +83,8 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 	protected boolean waitFirstSol;
 	protected int nbSprints;
 	private static int bigValue = 99999999;
+	public double firstLb = Double.NEGATIVE_INFINITY;
+	public int[][] bestStarZeros;
 
 	//***********************************************************************************
 	// CONSTRUCTORS
@@ -126,7 +128,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		boolean[] colCovered = new boolean[m];
 
 		//Fais cette étape seulement si la précédente n'a pas modifié la borne
-		if (lb == 0) {
+		if (true/*lb == 0*/) {
 
 			// Star a zero in each row
 			for (int i = 0; i < n; i++) {
@@ -229,9 +231,11 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 					}
 				}
 			}
+			return new Result(lb, costs, zeros);
 		}
-
-		return new Result(lb, costs, zeros);
+		else{
+			return new Result(lb, costs, null);
+		}
 	}
 
 	private static boolean columnHasStar(int[][] zeros, int col) {
@@ -321,12 +325,15 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		return null;  // no cycle found
 	}
 
-	public void basicFiltering(double lowerBound) throws ContradictionException {
-		double delta = costVar.getUB() - lowerBound;
+	int removed = 0;
+
+	public void basicFiltering(double[][] reducedCostsArray, double lowerBound) throws ContradictionException {
+		double delta = costVar.getUB() - lowerBound + 1;
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < n; j++) {
-				if (i != j && reducedCosts[i][j] > delta) {
-					reducedCosts[i][j] = bigValue;
+				if (gV.getUB().isArcOrEdge(i,j) && i != j && reducedCostsArray[i][j] > delta) {
+					reducedCostsArray[i][j] = bigValue;
+					removed++;
 					remove(i, j);
 				}
 			}
@@ -435,7 +442,6 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		totalPenalities = 0;
 		penalities = new double[n];
 		mandatoryArcsList = new TIntArrayList();
-		nbSprints = 30;
 		HK = new PrimOneTreeFinder(n, this);
 		HKfilter = new KruskalOneTree_GAC(n, this);
 	}
@@ -468,76 +474,107 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		rebuild();
 		setCosts();
 		int lb;
-		do {
-			lb = costVar.getLB();
-			fusionRelaxationAsym();
-		} while (lb < costVar.getLB());
+		lb = costVar.getLB();
+		fusionRelaxationAsym();
+		if(firstLb == Double.NEGATIVE_INFINITY){
+			firstLb = costVar.getLB();
+		}
 		//System.out.println("removed " + gV.removed);
 	}
 
-	private void fillReducedCosts(){
+	int iter = 0;
+
+	private void filterBigReducedCosts(double lowerBound, double[][] rc) throws ContradictionException {
+		double[][] reducedCostsClone = Arrays.stream(rc).map(double[]::clone).toArray(double[][]::new);
+		double[][] bigReducedCosts = new double[n][n];
+
 		for (int i = 0; i < n; i++) {
-			for (int j = i; j < n; j++) {
-				if (mst.edgeExists(i, j)){
-					reducedCosts[i][j] = 0;
-					reducedCosts[j][i] = 0;
-				} else {
-					reducedCosts[i][j] = getMarginalCost(i, j);
-					reducedCosts[j][i] = getMarginalCost(i, j);
-				}
+			for (int j = 0; j < n; j++) {
+				bigReducedCosts[i][j] = getBigReducedCostValue(i, j, reducedCostsClone, rc);
 			}
-			reducedCosts[i][i] = bigValue;
 		}
+
+		basicFiltering(bigReducedCosts, lowerBound);
+	}
+
+	private double getBigReducedCostValue(int i, int j, double[][] reducedCostsClone, double[][] originalRc){
+		for (int ii = 0; ii < n; ii++) {
+			if (ii != i){
+				reducedCostsClone[ii][j] = bigValue;
+			}
+		}
+		for (int jj = 0; jj < n; jj++) {
+			if(jj != j){
+				reducedCostsClone[i][jj] = bigValue;
+			}
+		}
+		double lb = 0;
+		int bigHungarianIterations = 10;
+		double[][] rc = reducedCostsClone;
+		for (int k = 0; k < bigHungarianIterations; k++) {
+			Result result = hungarianIteration(rc);
+			rc = result.array;
+			lb += result.lb;
+		}
+
+		for (int ii = 0; ii < n; ii++) {
+			for (int jj = 0; jj < n; jj++) {
+				reducedCostsClone[ii][jj] = originalRc[ii][jj];
+			}
+		}
+
+		return lb;
 	}
 
 	protected void fusionRelaxationAsym() throws ContradictionException {
-		double lowerBound;
+		iter++;
+		double lowerBound = 0;
 		double alpha = 2;
 		double beta = 0.5;
 		double maxLb;
 		maxLb = 0;
-		Result result = hungarianIteration(costs);
-		lowerBound = result.lb;
-		reducedCosts = result.array;
+		Result result;
+		double[][] bestReducedCosts = null;
+		reducedCosts = Arrays.stream(costs).map(double[]::clone).toArray(double[][]::new);
+		int maxNonImprove = 30;
+		nbSprints = 1000;
+		int nonImprove = 0;
+		int i = 0;
+		while (i < nbSprints && nonImprove < maxNonImprove){
+			result = hungarianIteration(reducedCosts);
+			lowerBound += result.lb;
+			reducedCosts = result.array;
 
-		result = edmondsIteration(reducedCosts, true, result.zeros);
-		lowerBound += result.lb;
-		basicFiltering(lowerBound);
-		maxLb = lowerBound;
-		if (lowerBound - Math.floor(lowerBound) < 0.001) {
-			lowerBound = Math.floor(lowerBound);
-		}
-		costVar.updateLowerBound((int) Math.ceil(lowerBound), this);
-		double oldBound = 0;
-		if(lowerBound > oldBound) {    //	for (int iter = 15; iter > 0; iter--) {
-			for (int i = nbSprints; i > 0; i--) {
-				result = hungarianIteration(reducedCosts);
-				lowerBound += result.lb;
-				reducedCosts = result.array;
-
-				result = edmondsIteration(reducedCosts, true, result.zeros);
-				lowerBound += result.lb;
-				basicFiltering(lowerBound);
-				if (lowerBound > maxLb) {
-					maxLb = lowerBound;
+			if (lowerBound > maxLb) {
+				maxLb = lowerBound;
+				if (result.zeros != null){
+					bestStarZeros = result.zeros;
 				}
-				if (lowerBound - Math.floor(lowerBound) < 0.001) {
-					lowerBound = Math.floor(lowerBound);
-				}
-				costVar.updateLowerBound((int) Math.ceil(lowerBound), this);
-				//fillReducedCosts();
+				bestReducedCosts = reducedCosts.clone();
+				nonImprove = 0;
 			}
+			else {
+				nonImprove++;
+			}
+
 			result = edmondsIteration(reducedCosts, true, result.zeros);
 			lowerBound += result.lb;
-			basicFiltering(lowerBound);
-			if (lowerBound > maxLb + 1) {
-				maxLb = lowerBound;
-			}
+			basicFiltering(reducedCosts, lowerBound);
+
 			if (lowerBound - Math.floor(lowerBound) < 0.001) {
 				lowerBound = Math.floor(lowerBound);
 			}
 			costVar.updateLowerBound((int) Math.ceil(lowerBound), this);
-			//System.out.println(lowerBound);
+			i++;
+		}
+
+		//System.out.println(removed);
+		if(costVar.getUB() - maxLb < maxLb/2){
+			filterBigReducedCosts(maxLb, bestReducedCosts);
+		}
+		removed = 0;
+		if(maxLb > 5600) {
+			int a = 3;
 		}
 	}
 
@@ -612,7 +649,6 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 	//***********************************************************************************
 	// INFERENCE
 	//***********************************************************************************
-
 	public void remove(int from, int to) throws ContradictionException {
 		gV.removeArc(from, to, this);
 	}

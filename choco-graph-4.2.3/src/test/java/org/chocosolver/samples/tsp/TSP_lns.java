@@ -100,7 +100,7 @@ public class TSP_lns {
 		UndirectedGraphVar graph = model.graphVar("G", GLB, GUB);
 
 		// constraints (TSP basic model + lagrangian relaxation)
-		model.tsp(graph, totalCost, costMatrix, 2).post();
+		////model.tsp(graph, totalCost, costMatrix, 2).post();
 
 		// intuitive heuristic (cheapest edges first)
 		final GraphSearch search = new GraphSearch(graph, costMatrix).configure(GraphSearch.MIN_COST);

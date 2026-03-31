@@ -34,6 +34,7 @@
 
 package org.chocosolver.graphsolver.search.strategy;
 
+import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionASym;
 import org.chocosolver.graphsolver.search.GraphAssignment;
 import org.chocosolver.graphsolver.search.GraphDecision;
 import org.chocosolver.graphsolver.variables.GraphVar;
@@ -61,6 +62,7 @@ public class GraphSearch extends GraphStrategy {
 	private int n;
 	private int mode;
 	private int[][] costs;
+	private PropFusionASym prop;
 	private GraphAssignment decisionType;
 	private int from, to;
 	private int value;
@@ -84,6 +86,14 @@ public class GraphSearch extends GraphStrategy {
 	 */
 	public GraphSearch(GraphVar graphVar, int[][] costMatrix) {
 		super(graphVar, null, null, NodeArcPriority.ARCS);
+		costs = costMatrix;
+		n = g.getNbMaxNodes();
+	}
+
+
+	public GraphSearch(GraphVar graphVar, int[][] costMatrix, PropFusionASym prop) {
+		super(graphVar, null, null, NodeArcPriority.ARCS);
+		this.prop = prop;
 		costs = costMatrix;
 		n = g.getNbMaxNodes();
 	}
@@ -137,6 +147,7 @@ public class GraphSearch extends GraphStrategy {
 	private void computeNextArc() {
 		to = -1;
 		from = -1;
+
 		if (useLC && lastFrom != -1) {
 			evaluateNeighbors(lastFrom);
 			if (to != -1) {
@@ -148,6 +159,7 @@ public class GraphSearch extends GraphStrategy {
 				return;
 			}
 		}
+
 		if (to == -1) {
 			throw new UnsupportedOperationException();
 		}
@@ -163,9 +175,13 @@ public class GraphSearch extends GraphStrategy {
 				int v = -1;
 				switch (mode) {
 					case LEX:
-						from = i;
-						to = j;
-						return true;
+						if(prop.bestStarZeros != null && prop.bestStarZeros[i][j] == 1) {
+							from = i;
+							to = j;
+							return true;
+						}
+						//from = i;
+						//to = j;
 					case MIN_P_DEGREE:
 					case MAX_P_DEGREE:
 						v = g.getPotSuccOrNeighOf(i).size()
@@ -197,6 +213,7 @@ public class GraphSearch extends GraphStrategy {
 				}
 			}
 		}
+
 		return false;
 	}
 

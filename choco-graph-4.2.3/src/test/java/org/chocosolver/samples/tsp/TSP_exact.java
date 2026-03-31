@@ -87,7 +87,7 @@ public class TSP_exact {
 		UndirectedGraphVar graph = model.graphVar("G", GLB, GUB);
 
         // constraints (TSP basic model + lagrangian relaxation)
-		model.tsp(graph, totalCost, costMatrix, 1).post();
+		///model.tsp(graph, totalCost, costMatrix, 1).post();
 
 
 		Solver solver = model.getSolver();

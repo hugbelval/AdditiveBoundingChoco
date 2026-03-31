@@ -1084,11 +1084,10 @@ public interface IGraphConstraintFactory {
 	 *                   2:Lagrangian relaxation but wait a first solution before running it}
 	 * @return a tsp constraint
 	 */
-	default Constraint tsp(UndirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, int LAGR_MODE) {
+	default Constraint tsp(UndirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, int LAGR_MODE, PropLagr_OneTree hk) {
 		Propagator[] props = ArrayUtils.append(hamiltonianCycle(GRAPHVAR).getPropagators());//,
 				//new Propagator[]{new PropCycleCostSimple(GRAPHVAR, COSTVAR, EDGE_COSTS)});
 		if (LAGR_MODE > 0) {
-			PropLagr_OneTree hk = new PropLagr_OneTree(GRAPHVAR, COSTVAR, EDGE_COSTS);
 			hk.waitFirstSolution(LAGR_MODE == 2);
 			props = ArrayUtils.append(props, new Propagator[]{hk});
 		}
@@ -1107,8 +1106,7 @@ public interface IGraphConstraintFactory {
 	}
 
 
-	default Constraint tsp_fusion_asym(DirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS) {
-		PropFusionASym fusion = new PropFusionASym(GRAPHVAR, COSTVAR, EDGE_COSTS);
+	default Constraint tsp_fusion_asym(DirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, PropFusionASym fusion) {
 		fusion.waitFirstSolution(false);
 		// Manque juste propCostSimple
 		Propagator[] props =ArrayUtils.append(hamiltonianCircuit(GRAPHVAR).getPropagators(), new Propagator[]{fusion});

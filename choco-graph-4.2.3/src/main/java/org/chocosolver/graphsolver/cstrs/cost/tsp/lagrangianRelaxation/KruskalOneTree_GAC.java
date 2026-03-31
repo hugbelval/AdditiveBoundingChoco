@@ -118,24 +118,32 @@ public class KruskalOneTree_GAC extends KruskalMSTFinder {
 	}
 
 	protected void pruning(int fi, double delta) throws ContradictionException {
+		//TODO comprendre
+		//Check pour la root 0
 		ISet nei = g.getNeighOf(0);
 		for (int i : nei) {
 			if (i != min1 && i != min2) {
+				// min1 et min2 représentent les deux plus petits arcs connectés à la root 0.
+				// Check cout réduit vs autre option pour root
 				if (distMatrix[0][i] - distMatrix[0][min2] > delta) {
 					propHK.remove(0, i);
 				}
 			}
 		}
 
+		//Les activeArcs sont probablement ceux qui ne sont ni filtrés ni mandatory.
+
 		for (int arc = activeArcs.nextSetBit(0); arc >= 0; arc = activeArcs.nextSetBit(arc + 1)) {
 			int i = sortedArcs[arc] / n;
 			int j = sortedArcs[arc] % n;
 			if (!Tree.edgeExists(i, j)) {
+				//Couts marginaux = couts réduits
 				marginalCosts[i][j] = costs[i * n + j] - ccTEdgeCost[lca.getLCA(i, j)];
 				if (marginalCosts[i][j] > delta) {
 					activeArcs.clear(arc);
 					propHK.remove(i, j);
 				} else {
+					//???
 					markTreeEdges(ccTp, i, j);
 				}
 			}

@@ -70,6 +70,7 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 	protected boolean waitFirstSol;
 	protected int nbSprints;
 
+	public double firstLb = Integer.MIN_VALUE;
 	//***********************************************************************************
 	// CONSTRUCTORS
 	//***********************************************************************************
@@ -111,11 +112,17 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 			lagrangianRelaxation();
 		} while (lb < obj.getLB());
 
+		System.out.println(gV.removed);
+		gV.removed = 0;
+
+		if (firstLb == Integer.MIN_VALUE){
+			firstLb = obj.getLB();
+		}
 	//System.out.println("removed " + gV.removed);
 	}
 
+	double hkb;
 	protected void lagrangianRelaxation() throws ContradictionException {
-		double hkb;
 		double alpha = 2;
 		double beta = 0.5;
 		double bestHKB;
@@ -163,7 +170,7 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 			updateCostMatrix();
 			alpha *= beta;
 			beta /= 2;
-			//System.out.println(hkb);
+
 		}
 	}
 

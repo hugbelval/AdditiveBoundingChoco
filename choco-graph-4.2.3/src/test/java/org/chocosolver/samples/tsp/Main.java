@@ -28,6 +28,8 @@
 package org.chocosolver.samples.tsp;
 
 import org.chocosolver.graphsolver.GraphModel;
+import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionASym;
+import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropLagr_OneTree;
 import org.chocosolver.graphsolver.search.strategy.GraphSearch;
 import org.chocosolver.graphsolver.variables.DirectedGraphVar;
 import org.chocosolver.graphsolver.variables.UndirectedGraphVar;
@@ -36,14 +38,17 @@ import org.chocosolver.solver.Solver;
 import org.chocosolver.solver.variables.IntVar;
 import org.chocosolver.util.objects.graphs.DirectedGraph;
 import org.chocosolver.util.objects.graphs.UndirectedGraph;
-import org.chocosolver.util.objects.setDataStructures.ISet;
 import org.chocosolver.util.objects.setDataStructures.SetType;
 import org.moeaframework.problem.tsplib.TSPInstance;
 import org.moeaframework.problem.tsplib.DistanceTable;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 /**
  * Solves the Traveling Salesman Problem
@@ -68,24 +73,51 @@ public class Main {
 	private static IntVar totalCost;
 	private static UndirectedGraphVar graph;
 	private static DirectedGraphVar digraph;
-	private static int LIMIT = 45; // in seconds
+	private static int LIMIT = 30; // in seconds
 	private static int n;
 	private static int M = 1000000;
 	private static int bigValue = 999999999;
     public static void main(String[] args) throws IOException {
-
 		//randomLoop();
-
 		//int[][] data = getTSPInstance("brazil58");
-		int[][] data = getATSPInstance("br17");
+		//results();
+
+		int[][] data = getATSPInstance("ftv33.atsp");
 		n = data.length;
 
 		int[][] bench_matrix = makeBenchMatrix(data);
-	//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
+		//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
 		int presolve = 9999999;
 		//benchimol(bench_matrix ,presolve);
 		fusionAsym(data, presolve);
     }
+
+	private static void results() throws IOException {
+		String[] filenames = getATSPFilenames();
+		double[] fusionResults = new double[filenames.length];
+		double[] benchResults = new double[filenames.length];
+		for (int i = 0; i < filenames.length; i++){
+			int[][] data = getATSPInstance(filenames[i]);
+			n = data.length;
+
+			int[][] bench_matrix = makeBenchMatrix(data);
+			//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
+			int presolve = 9999999;
+			benchResults[i] = benchimol(bench_matrix ,presolve);
+			fusionResults[i] = fusionAsym(data, presolve);
+		}
+
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/results.csv"))) {
+			bw.write("," + String.join(",", filenames)); bw.newLine();
+			bw.write("benchimol," + Arrays.stream(benchResults)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("maMéthode," + Arrays.stream(fusionResults)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+		}
+
+
+
+	}
 
 	private static void randomLoop(){
 		n = 4;
@@ -93,7 +125,7 @@ public class Main {
 			int[][] data = randomMatrix();
 			int[][] bench_matrix = makeBenchMatrix(data);
 			int presolve = 9999999;
-			//int solBench = benchimol(bench_matrix ,presolve);
+			int solBench = benchimol(bench_matrix ,presolve);
 			int solFusion = fusionAsym(data, presolve);
 
 			/*if(solBench != solFusion) {
@@ -146,8 +178,13 @@ public class Main {
 
 	private static int[][] getATSPInstance(String name) throws IOException {
 		String REPO = "src/test/java/org/chocosolver/samples/atsp";
-		org.moeaframework.problem.tsplib.TSPInstance problem = new TSPInstance(new File(REPO + "/" + name + ".atsp"));
+		org.moeaframework.problem.tsplib.TSPInstance problem = new TSPInstance(new File(REPO + "/" + name));
 		return getDataFromProblem(problem);
+	}
+	private static String[] getATSPFilenames() throws IOException {
+		String REPO = "src/test/java/org/chocosolver/samples/atsp";
+		File dir = new File(REPO);
+		return dir.list();
 	}
 
 	private static int[][] getDataFromProblem(TSPInstance problem){
@@ -205,7 +242,7 @@ public class Main {
 	private static int search(int[][] costMatrix, boolean benchMatrix){
 		Solver solver = model.getSolver();
 		// Fail first principle (requires a very good initial upper bound)
-		solver.setSearch(new GraphSearch(graph, costMatrix).configure(GraphSearch.MIN_DELTA_DEGREE).useLastConflict());
+		solver.setSearch(new GraphSearch(graph, costMatrix).configure(GraphSearch.MIN_COST).useLastConflict());
 		solver.limitTime(LIMIT+"s");
 
 		model.setObjective(Model.MINIMIZE,totalCost);
@@ -233,7 +270,7 @@ public class Main {
 	private static int searchAsym(int[][] costMatrix){
 		Solver solver = model.getSolver();
 		// Fail first principle (requires a very good initial upper bound)
-		solver.setSearch(new GraphSearch(digraph, costMatrix).configure(GraphSearch.MIN_DELTA_DEGREE).useLastConflict());
+		solver.setSearch(new GraphSearch(digraph, costMatrix, fusion).configure(GraphSearch.LEX).useLastConflict());
 		solver.limitTime(LIMIT+"s");
 
 		model.setObjective(Model.MINIMIZE,totalCost);
@@ -254,11 +291,13 @@ public class Main {
 		return solver.getBestSolutionValue().intValue();
 	}
 
-
+	private static PropFusionASym fusion = null;
+	private static PropLagr_OneTree bench = null;
 	private static int benchimol(int[][] costMatrix, int initialUB){
-		createModel(costMatrix, initialUB);
+		createModel(costMatrix, - (n-1)*M);
         // constraints (TSP basic model + lagrangian relaxation)
-		model.tsp(graph, totalCost, costMatrix, 1).post();
+		bench = new PropLagr_OneTree(graph, totalCost, costMatrix);
+		model.tsp(graph, totalCost, costMatrix, 1, bench).post();
 		return search(costMatrix, true);
     }
 
@@ -271,8 +310,11 @@ public class Main {
 
 	private static int fusionAsym(int[][] costMatrix, int initialUB){
 		createModelAsym(costMatrix, initialUB);
+		fusion = new PropFusionASym(digraph, totalCost, costMatrix);
 		// constraints (TSP basic model + lagrangian relaxation)
-		model.tsp_fusion_asym(digraph, totalCost, costMatrix).post();
+		model.tsp_fusion_asym(digraph, totalCost, costMatrix, fusion).post();
 		return searchAsym(costMatrix);
 	}
+
+
 }
