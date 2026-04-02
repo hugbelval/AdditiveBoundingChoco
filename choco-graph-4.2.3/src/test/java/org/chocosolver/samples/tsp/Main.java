@@ -30,6 +30,7 @@ package org.chocosolver.samples.tsp;
 import org.chocosolver.graphsolver.GraphModel;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionASym;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropLagr_OneTree;
+import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropSymVarFusionASym;
 import org.chocosolver.graphsolver.search.strategy.GraphSearch;
 import org.chocosolver.graphsolver.variables.DirectedGraphVar;
 import org.chocosolver.graphsolver.variables.UndirectedGraphVar;
@@ -79,17 +80,17 @@ public class Main {
 	private static int bigValue = 999999999;
     public static void main(String[] args) throws IOException {
 		//randomLoop();
-		//int[][] data = getTSPInstance("brazil58");
 		//results();
 
-		int[][] data = getATSPInstance("ftv33.atsp");
+		int[][] data = getATSPInstance("test.atsp");
 		n = data.length;
 
 		int[][] bench_matrix = makeBenchMatrix(data);
 		//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
-		int presolve = 9999999;
+		int presolve = 99999999;
 		//benchimol(bench_matrix ,presolve);
 		fusionAsym(data, presolve);
+		//fusionBench(data, bench_matrix, presolve);
     }
 
 	private static void results() throws IOException {
@@ -301,12 +302,12 @@ public class Main {
 		return search(costMatrix, true);
     }
 
-	private static void fusion(int[][] costMatrix, int initialUB){
+	/*private static void fusion(int[][] costMatrix, int initialUB){
 		createModel(costMatrix, initialUB);
 		// constraints (TSP basic model + lagrangian relaxation)
 		model.tsp_fusion(graph, totalCost, costMatrix).post();
 		search(costMatrix, false);
-	}
+	}*/
 
 	private static int fusionAsym(int[][] costMatrix, int initialUB){
 		createModelAsym(costMatrix, initialUB);
@@ -316,5 +317,11 @@ public class Main {
 		return searchAsym(costMatrix);
 	}
 
-
+	private static int fusionBench(int[][] smallCostMatrix, int[][] bigCostMatrix, int initialUB){
+		createModel(bigCostMatrix, initialUB);
+		PropSymVarFusionASym prop = new PropSymVarFusionASym(graph, totalCost, smallCostMatrix);
+		// constraints (TSP basic model + lagrangian relaxation)
+		model.tsp_fusion(graph, totalCost, bigCostMatrix, prop).post();
+		return search(bigCostMatrix, true);
+	}
 }

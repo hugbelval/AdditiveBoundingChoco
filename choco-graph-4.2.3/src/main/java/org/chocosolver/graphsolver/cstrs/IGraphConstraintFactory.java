@@ -45,6 +45,7 @@ import org.chocosolver.graphsolver.cstrs.cost.tsp.PropCycleCostSimple;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusion;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionASym;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropLagr_OneTree;
+import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropSymVarFusionASym;
 import org.chocosolver.graphsolver.cstrs.cycles.*;
 import org.chocosolver.graphsolver.cstrs.degree.*;
 import org.chocosolver.graphsolver.cstrs.inclusion.PropInclusion;
@@ -1095,24 +1096,19 @@ public interface IGraphConstraintFactory {
 	}
 
 
-	default Constraint tsp_fusion(UndirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS) {
+	default Constraint tsp_fusion(UndirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, Propagator prop) {
 		Propagator[] props = ArrayUtils.append(hamiltonianCycle(GRAPHVAR).getPropagators());//,
 				//new Propagator[]{new PropCycleCostSimple(GRAPHVAR, COSTVAR, EDGE_COSTS)});
-		PropFusion fusion = new PropFusion(GRAPHVAR, COSTVAR, EDGE_COSTS);
-		fusion.waitFirstSolution(false);
 		//props = new Propagator[]{};
-		props = ArrayUtils.append(props, new Propagator[]{fusion});
+		props = ArrayUtils.append(props, new Propagator[]{prop});
 		return new Constraint("TSPFusion", props);
 	}
 
-
-	default Constraint tsp_fusion_asym(DirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, PropFusionASym fusion) {
-		fusion.waitFirstSolution(false);
+	default Constraint tsp_fusion_asym(DirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, Propagator fusion) {
 		// Manque juste propCostSimple
 		Propagator[] props =ArrayUtils.append(hamiltonianCircuit(GRAPHVAR).getPropagators(), new Propagator[]{fusion});
 		return new Constraint("TSPFusion", props);
 	}
-
 
 	/**
 	 * Creates a degree-constrained minimum spanning tree constraint :
