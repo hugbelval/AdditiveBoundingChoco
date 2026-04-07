@@ -74,7 +74,7 @@ public class Main {
 	private static IntVar totalCost;
 	private static UndirectedGraphVar graph;
 	private static DirectedGraphVar digraph;
-	private static int LIMIT = 30; // in seconds
+	private static int LIMIT = 30000000; // in seconds
 	private static int n;
 	private static int M = 1000000;
 	private static int bigValue = 999999999;
@@ -82,12 +82,12 @@ public class Main {
 		//randomLoop();
 		//results();
 
-		int[][] data = getATSPInstance("test.atsp");
+		int[][] data = getATSPInstance("ft53.atsp");
 		n = data.length;
 
 		int[][] bench_matrix = makeBenchMatrix(data);
 		//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
-		int presolve = 99999999;
+		int presolve = 9999999;
 		//benchimol(bench_matrix ,presolve);
 		fusionAsym(data, presolve);
 		//fusionBench(data, bench_matrix, presolve);

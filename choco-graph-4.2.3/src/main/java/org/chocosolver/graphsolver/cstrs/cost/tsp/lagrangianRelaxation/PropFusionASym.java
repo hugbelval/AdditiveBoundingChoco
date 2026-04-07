@@ -87,39 +87,39 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 	private static int bigValue = 99999999;
 	public double firstLb = Double.NEGATIVE_INFINITY;
 	public int[][] bestStarZeros;
-	private HashSet remainingRows;
-	private HashSet remainingCols;
+	private HashSet<Integer> remainingRows;
+	private HashSet<Integer> remainingCols;
 
 	//***********************************************************************************
 	// CONSTRUCTORS
 	//***********************************************************************************
 
-	public static Result hungarianIteration(double[][] costs) {
+	public Result hungarianIteration(double[][] costs) {
 		int n = costs.length;
 		int m = costs[0].length;
 
 		double lb = 0.0;
 
 		// Subtract minimum value from each row
-		for (int i = 0; i < n; i++) {
+		for (int i : remainingRows) {
 			double min = Double.POSITIVE_INFINITY;
-			for (int j = 0; j < m; j++)
+			for (int j: remainingCols)
 				min = Math.min(min, costs[i][j]);
 
 			lb += min;
-			for (int j = 0; j < m; j++) {
+			for (int j : remainingCols) {
 				costs[i][j] -= min;
 			}
 		}
 
 		// Subtract minimum value from each column
-		for (int j = 0; j < m; j++) {
+		for (int j: remainingCols) {
 			double min = Double.POSITIVE_INFINITY;
-			for (int i = 0; i < n; i++)
+			for (int i: remainingRows)
 				min = Math.min(min, costs[i][j]);
 
 			lb += min;
-			for (int i = 0; i < n; i++)
+			for (int i: remainingRows)
 				costs[i][j] -= min;
 		}
 
@@ -178,7 +178,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 									int currentRow = i;
 									int currentCol = j;
 									boolean done = false;
-
+									//TODO à vérifier, je viens d'ajouter ligne ci-dessous 7 avril
 									while (!done) {
 										int starRow = findStarInCol(zeros, currentCol, currentRow);
 										if (starRow != -1) {
@@ -193,6 +193,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 											done = true;
 										}
 									}
+									zeros[i][j] = 1;
 
 									// Unprime all primed and uncover all lines
 									for (int ii = 0; ii < n; ii++)
@@ -299,13 +300,13 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 				// If node is in recursion stack → cycle found
 				if (recStack.contains(i)) {
 					parent.put(i, node);
-					int x = i;
 					List<Integer> cycle = new ArrayList<>();
-					cycle.add(x);
+					cycle.add(node);
 
+					int x = parent.get(node);
 					while (x != node) {
-						x = parent.get(x);
 						cycle.add(0, x);  // insert at beginning
+						x = parent.get(x);
 					}
 					return cycle;
 				}
@@ -334,22 +335,122 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 				if (gV.getUB().isArcOrEdge(i,j) && i != j && reducedCostsArray[i][j] > delta) {
 					reducedCostsArray[i][j] = bigValue;
 					removed++;
-					try{
 						remove(i, j);
-					} catch (ContradictionException ce){
-						throw ce;
-					}
 				}
 			}
 		}
+		//mandFiltering();
 	}
 
-	public static Result edmondsIteration(
+	public void mandFiltering() throws ContradictionException {
+		for (int i = 0; i < n; i++) {
+			ISet succ = gV.getPotSuccOf(i);
+			ISet pred = gV.getPotPredOf(i);
+			if(succ.size() == 1){
+				gV.enforceArc(i, succ.min(), this);
+			}
+
+			if(pred.size() == 1){
+				gV.enforceArc(pred.min(), i, this);
+			}
+		}
+	}
+	public static Result edmondsIterationV2(
 			double[][] matrix,
 			boolean incrementZeros,
 			int[][] starZeros
 	) {
-		if(starZeros == null){
+		if (starZeros == null) {
+			return new Result(0, matrix, null);
+		}
+
+		int n = matrix.length;
+		double lb = 0;
+
+		// Column reduction
+		for (int col = 0; col < n; col++) {
+			double min = Double.POSITIVE_INFINITY;
+			for (int row = 0; row < n; row++)
+				min = Math.min(min, matrix[row][col]);
+			lb += min;
+			for (int row = 0; row < n; row++)
+				matrix[row][col] -= min;
+		}
+
+		// Extract permutation from starred zeros
+		int[] permutation = new int[n];
+		Arrays.fill(permutation, -1);
+		for (int i = 0; i < n; i++)
+			for (int j = 0; j < n; j++)
+				if (starZeros[i][j] == 1) {
+					permutation[i] = j;
+					break;
+				}
+
+		// Find all cycles in O(n)
+		boolean[] visited = new boolean[n];
+		List<List<Integer>> allCycles = new ArrayList<>();
+
+		for (int start = 0; start < n; start++) {
+			if (!visited[start] && permutation[start] != -1) {
+				List<Integer> cycle = new ArrayList<>();
+				int current = start;
+				while (!visited[current]) {
+					visited[current] = true;
+					cycle.add(current);
+					current = permutation[current];
+				}
+				if (cycle.size() > 1 && cycle.size() < n) {
+					allCycles.add(cycle);
+				}
+			}
+		}
+
+		// Penalize all cycles
+		for (List<Integer> cycle : allCycles) {
+			// Find minimum incoming edge cost from outside the cycle
+			Set<Integer> cycleSet = new HashSet<>(cycle);
+			double minimum = Double.POSITIVE_INFINITY;
+
+			for (int to : cycle) {
+				for (int from = 0; from < n; from++) {
+					if (!cycleSet.contains(from)) {
+						minimum = Math.min(minimum, matrix[from][to]);
+					}
+				}
+			}
+
+			if (incrementZeros && minimum == 0) {
+				for (int i = 0; i < n; i++)
+					for (int j = 0; j < n; j++)
+						if (i != j && matrix[i][j] != 0)
+							minimum = 1;
+			}
+
+			if (minimum == Double.POSITIVE_INFINITY || minimum == 0)
+				continue;
+
+			// Add penalty to edges entering the cycle
+			for (int to : cycle) {
+				for (int from = 0; from < n; from++) {
+					if (!cycleSet.contains(from)) {
+						matrix[from][to] += minimum;
+					}
+				}
+			}
+
+			lb -= minimum * (cycle.size() - 1);
+		}
+
+		return new Result(lb, matrix, null);
+	}
+
+	public Result edmondsIteration(
+			double[][] matrix,
+			boolean incrementZeros,
+			int[][] starZeros
+	) {
+		if(starZeros == null /*|| countStars(starZeros) < n*/){
 			return new Result(0, matrix, null);
 		}
 
@@ -370,28 +471,33 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 		int[][] edges;
 
-		edges = new int[n - 1][n - 1];
+		edges = starZeros;
+		//Force 1-tree, maybe not necessary
+			/*	new int[n - 1][n - 1];
 		for (int i = 1; i < n; i++)
-			System.arraycopy(starZeros[i], 1, edges[i - 1], 0, n - 1);
+			System.arraycopy(starZeros[i], 1, edges[i - 1], 0, n - 1);*/
 
 		Set<Integer> visited = new HashSet<>();
-		List<Integer> cycle = null;
+		 List<List<Integer>> cycles = new ArrayList<>();
 
 		// Find cycle
 		for (int i = 0; i < edges.length; i++) {
-			if (!visited.contains(i) &&
-					(cycle == null || cycle.size() == matrix.length)) {
-
-				cycle = dfsFindCycle(edges, i, visited,
+			if (!visited.contains(i) /*&& cycle == null*/) {
+				List<Integer> cycle = dfsFindCycle(edges, i, visited,
 						new HashMap<>(), new HashSet<>());
+				if (cycle != null && cycle.size() < n) {
+					cycles.add(cycle);
+				}
 			}
 		}
 
 		//TODO peut-être refactor ici pour ne pas utiliser les masques, il doit y avoir plus efficace en java
 		// Utiliser tuples pour cycleEdgesMask
 
-		if (cycle != null && cycle.size() < matrix.length) {
-
+		for(List<Integer> cycle : cycles){
+			if (cycle.size() > 2){
+				int a =3;
+			}
 			boolean[][] cycleEdgesMask =
 					new boolean[edges.length][edges[0].length];
 
@@ -401,7 +507,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 			for (int i = 0; i < cycle.size(); i++) {
 				int from = cycle.get(i);
-				int to = cycle.get((i + 1) % cycle.size());
+				int to = cycle.get((i+1) % cycle.size());
 				cycleEdgesMask[from][to] = false;
 			}
 
@@ -410,7 +516,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 			for (int i = 0; i < edges.length; i++)
 				for (int j = 0; j < edges[0].length; j++)
 					if (cycleEdgesMask[i][j])
-						minimumCandidates.add(matrix[i+1][j+1]);
+						minimumCandidates.add(matrix[i/*+1*/][j/*+1*/]);
 
 			double minimum = Collections.min(minimumCandidates);
 
@@ -426,7 +532,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 			for (int i = 0; i < cycle.size(); i++) {
 				int from = cycle.get(i);
 				int to = cycle.get((i + 1) % cycle.size());
-				matrix[from+1][to+1] += minimum;
+				matrix[from/*+1*/][to/*+1*/] += minimum;
 			}
 
 			double boundChange = minimum * (cycle.size() - 1);
@@ -489,7 +595,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 	int iter = 0;
 
-	private void filterBigReducedCosts(double lowerBound, double[][] rc) throws ContradictionException {
+	/*private void filterBigReducedCosts(double lowerBound, double[][] rc) throws ContradictionException {
 		double[][] reducedCostsClone = Arrays.stream(rc).map(double[]::clone).toArray(double[][]::new);
 		double[][] bigReducedCosts = new double[n][n];
 
@@ -500,9 +606,9 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		}
 
 		basicFiltering(bigReducedCosts, lowerBound);
-	}
+	}*/
 
-	private double getBigReducedCostValue(int i, int j, double[][] reducedCostsClone, double[][] originalRc){
+	/*private double getBigReducedCostValue(int i, int j, double[][] reducedCostsClone, double[][] originalRc){
 		for (int ii = 0; ii < n; ii++) {
 			if (ii != i){
 				reducedCostsClone[ii][j] = bigValue;
@@ -529,7 +635,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		}
 
 		return lb;
-	}
+	}*/
 
 	protected void fusionRelaxationAsym() throws ContradictionException {
 		iter++;
@@ -546,9 +652,11 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		int nonImprove = 0;
 		int i = 0;
 		while (i < nbSprints && nonImprove < maxNonImprove){
+			updateRemainingArcs();
 			result = hungarianIteration(reducedCosts);
 			lowerBound += result.lb;
 			reducedCosts = result.array;
+			//basicFiltering(reducedCosts, lowerBound);
 
 			if (lowerBound > maxLb) {
 				maxLb = lowerBound;
@@ -619,11 +727,11 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 
 	protected void updateRemainingArcs() {
-		remainingRows = IntStream.rangeClosed(0, n)
+		remainingRows = IntStream.rangeClosed(0, n-1)
                                 .boxed()
                                 .collect(Collectors.toCollection(HashSet::new));
 
-		remainingCols = IntStream.rangeClosed(0, n)
+		remainingCols = IntStream.rangeClosed(0, n-1)
 				.boxed()
 				.collect(Collectors.toCollection(HashSet::new));
 
