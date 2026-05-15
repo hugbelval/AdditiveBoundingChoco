@@ -74,7 +74,7 @@ public class Main {
 	private static IntVar totalCost;
 	private static UndirectedGraphVar graph;
 	private static DirectedGraphVar digraph;
-	private static int LIMIT = 60; // in seconds
+	private static int LIMIT = 300; // in seconds
 	private static int n;
 	private static int M = 1000000;
 	private static int bigValue = 999999999;
@@ -84,7 +84,7 @@ public class Main {
 		//resultsFirstLB_vsHeldKarp();
 		//resultsFirstLB_vsSequencing();
 
-		LIMIT = 60;
+		LIMIT = 30;
 		//resultsTimeAndNodes_vsHeldKarp();
 		resultsTimeAndNodes_vsSequencing();
 
@@ -177,20 +177,20 @@ public class Main {
 			int[][] bench_matrix = makeBenchMatrix(data);
 			//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
 			int presolve = 9999999;
-			Solver resultsBench = fusionAsym(data, presolve, false);
-			benchTime[i] = resultsBench.getTimeCount();
+			//Solver resultsBench = fusionAsym(data, presolve, false);
+			//benchTime[i] = resultsBench.getTimeCount();
 			Solver resultsFusion = fusionAsym(data, presolve, true);
 			fusionTime[i] = resultsFusion.getTimeCount();
 			fusionNodeCount[i] = resultsFusion.getNodeCount();
-			benchNodeCount[i] = resultsBench.getNodeCount();
+			//benchNodeCount[i] = resultsBench.getNodeCount();
 		}
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/resultsTimeSequencingLessFilteringCalls.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/resultsTimeSequencingBIGFILTER.csv"))) {
 			bw.write("," + String.join(",", filenames)); bw.newLine();
-			bw.write("benchimol temps," + Arrays.stream(benchTime)
+			/*bw.write("benchimol temps," + Arrays.stream(benchTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("benchimol noeuds," + Arrays.stream(benchNodeCount)
-					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();*/
 			bw.write("entrelacer temps," + Arrays.stream(fusionTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("entrelacer noeuds," + Arrays.stream(fusionNodeCount)

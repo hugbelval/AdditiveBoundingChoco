@@ -740,7 +740,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 	int iter = 0;
 
-	/*private void filterBigReducedCosts(double lowerBound, double[][] rc) throws ContradictionException {
+	private void filterBigReducedCosts(double lowerBound, double[][] rc) throws ContradictionException {
 		double[][] reducedCostsClone = Arrays.stream(rc).map(double[]::clone).toArray(double[][]::new);
 		double[][] bigReducedCosts = new double[n][n];
 
@@ -751,9 +751,9 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		}
 
 		basicFiltering(bigReducedCosts, lowerBound);
-	}*/
+	}
 
-	/*private double getBigReducedCostValue(int i, int j, double[][] reducedCostsClone, double[][] originalRc){
+	private double getBigReducedCostValue(int i, int j, double[][] reducedCostsClone, double[][] originalRc){
 		for (int ii = 0; ii < n; ii++) {
 			if (ii != i){
 				reducedCostsClone[ii][j] = bigValue;
@@ -780,7 +780,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		}
 
 		return lb;
-	}*/
+	}
 
 	public static String get2DArrayPrint(double[][] matrix) {
 		String output = new String();
@@ -902,11 +902,12 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 					basicFiltering(reducedCosts, lowerBound);
 				}
 			}
-			basicFiltering(reducedCosts, lowerBound);
 
 			if (lowerBound - Math.floor(lowerBound) < 0.001) {
 				lowerBound = Math.floor(lowerBound);
 			}
+
+
 			costVar.updateLowerBound((int) Math.ceil(maxLb), this);
 			i++;
 		}
@@ -920,6 +921,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 
 
+		filterBigReducedCosts(lowerBound, reducedCosts);
 		removed = 0;
 		boundDecreased = 0;
 		if(maxLb > 5600) {
