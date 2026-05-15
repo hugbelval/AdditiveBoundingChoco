@@ -164,7 +164,8 @@ public class GraphSearch extends GraphStrategy {
 			throw new UnsupportedOperationException();
 		}
 	}
-
+	int yes = 0;
+	int no = 0;
 	private boolean evaluateNeighbors(int i) {
 		ISet set = g.getPotSuccOrNeighOf(i);
 		if (set.size() == g.getMandSuccOrNeighOf(i).size()) {
@@ -175,13 +176,20 @@ public class GraphSearch extends GraphStrategy {
 				int v = -1;
 				switch (mode) {
 					case LEX:
-						if(prop.bestStarZeros != null && prop.bestStarZeros[i][j] == 1) {
+						if(this.prop != null && prop.bestStarZeros != null && prop.bestStarZeros[i][j] == 1) {
 							from = i;
 							to = j;
+							yes++;
 							return true;
+						}
+						else{
+							//Min cost
+							no++;
+							v = costs[i][j];
 						}
 						//from = i;
 						//to = j;
+						break;
 					case MIN_P_DEGREE:
 					case MAX_P_DEGREE:
 						v = g.getPotSuccOrNeighOf(i).size()

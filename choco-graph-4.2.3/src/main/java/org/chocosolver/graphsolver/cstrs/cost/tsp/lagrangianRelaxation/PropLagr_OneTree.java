@@ -112,7 +112,6 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 			lagrangianRelaxation();
 		} while (lb < obj.getLB());
 
-		System.out.println(gV.removed);
 		gV.removed = 0;
 
 		if (firstLb == Integer.MIN_VALUE){

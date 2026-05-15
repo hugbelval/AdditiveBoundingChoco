@@ -74,26 +74,131 @@ public class Main {
 	private static IntVar totalCost;
 	private static UndirectedGraphVar graph;
 	private static DirectedGraphVar digraph;
-	private static int LIMIT = 30000000; // in seconds
+	private static int LIMIT = 60; // in seconds
 	private static int n;
 	private static int M = 1000000;
 	private static int bigValue = 999999999;
     public static void main(String[] args) throws IOException {
+		LIMIT = 1;
+
+		//resultsFirstLB_vsHeldKarp();
+		//resultsFirstLB_vsSequencing();
+
+		LIMIT = 60;
+		//resultsTimeAndNodes_vsHeldKarp();
+		resultsTimeAndNodes_vsSequencing();
+
 		//randomLoop();
-		//results();
-
-		int[][] data = getATSPInstance("ft53.atsp");
+		//resultsFirstLB();
+		//resultsTimeAndNodes();
+		//getData();
+		int[][] data = getATSPInstance("ft70.atsp");
 		n = data.length;
-
 		int[][] bench_matrix = makeBenchMatrix(data);
-		//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
-		int presolve = 9999999;
-		//benchimol(bench_matrix ,presolve);
-		fusionAsym(data, presolve);
-		//fusionBench(data, bench_matrix, presolve);
+		int presolve = 99999;
+		fusionAsym(data, presolve, true);
+		//benchimol(bench_matrix, presolve);
     }
 
-	private static void results() throws IOException {
+	private static void getData() throws IOException {
+		int[][] data = getATSPInstance("ft70.atsp");
+		n = data.length;
+		int presolve = 99999;
+
+		fusionAsym(data, presolve, false);
+
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/dataFirstIterNoInterleave.csv"))) {
+			bw.write("time," + Arrays.stream(fusion.dataTime.toArray())
+					.map(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("bound," + Arrays.stream(fusion.dataBound.toArray())
+					.map(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("isHungarian," + Arrays.stream(fusion.dataIsHungarian.toArray())
+					.map(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+		}
+
+		fusionAsym(data, presolve, true);
+
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/dataFirstIter.csv"))) {
+			bw.write("time," + Arrays.stream(fusion.dataTime.toArray())
+					.map(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("bound," + Arrays.stream(fusion.dataBound.toArray())
+					.map(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("isHungarian," + Arrays.stream(fusion.dataIsHungarian.toArray())
+					.map(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+		}
+	}
+
+	private static void resultsTimeAndNodes_vsHeldKarp() throws IOException {
+		String[] filenames = getATSPFilenames();
+		double[] fusionTime = new double[filenames.length];
+		double[] fusionNodeCount = new double[filenames.length];
+		double[] benchTime = new double[filenames.length];
+		double[] benchNodeCount = new double[filenames.length];
+
+		for (int i = 0; i < filenames.length; i++){
+			int[][] data = getATSPInstance(filenames[i]);
+			n = data.length;
+
+			int[][] bench_matrix = makeBenchMatrix(data);
+			//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
+			int presolve = 9999999;
+			Solver resultsBench = benchimol(bench_matrix,presolve);
+			benchTime[i] = resultsBench.getTimeCount();
+			Solver resultsFusion = fusionAsym(data, presolve, true);
+			fusionTime[i] = resultsFusion.getTimeCount();
+			fusionNodeCount[i] = resultsFusion.getNodeCount();
+			benchNodeCount[i] = resultsBench.getNodeCount();
+		}
+
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/resultsTimeHeldKarp.csv"))) {
+			bw.write("," + String.join(",", filenames)); bw.newLine();
+			bw.write("benchimol temps," + Arrays.stream(benchTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("benchimol noeuds," + Arrays.stream(benchNodeCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("entrelacer temps," + Arrays.stream(fusionTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("entrelacer noeuds," + Arrays.stream(fusionNodeCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+		}
+	}
+
+	private static void resultsTimeAndNodes_vsSequencing() throws IOException {
+		String[] filenames = getATSPFilenames();
+		double[] fusionTime = new double[filenames.length];
+		double[] fusionNodeCount = new double[filenames.length];
+		double[] benchTime = new double[filenames.length];
+		double[] benchNodeCount = new double[filenames.length];
+
+		for (int i = 0; i < filenames.length; i++){
+			int[][] data = getATSPInstance(filenames[i]);
+			n = data.length;
+
+			int[][] bench_matrix = makeBenchMatrix(data);
+			//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
+			int presolve = 9999999;
+			Solver resultsBench = fusionAsym(data, presolve, false);
+			benchTime[i] = resultsBench.getTimeCount();
+			Solver resultsFusion = fusionAsym(data, presolve, true);
+			fusionTime[i] = resultsFusion.getTimeCount();
+			fusionNodeCount[i] = resultsFusion.getNodeCount();
+			benchNodeCount[i] = resultsBench.getNodeCount();
+		}
+
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/resultsTimeSequencingLessFilteringCalls.csv"))) {
+			bw.write("," + String.join(",", filenames)); bw.newLine();
+			bw.write("benchimol temps," + Arrays.stream(benchTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("benchimol noeuds," + Arrays.stream(benchNodeCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("entrelacer temps," + Arrays.stream(fusionTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("entrelacer noeuds," + Arrays.stream(fusionNodeCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+		}
+	}
+
+	private static void resultsFirstLB_vsHeldKarp() throws IOException {
 		String[] filenames = getATSPFilenames();
 		double[] fusionResults = new double[filenames.length];
 		double[] benchResults = new double[filenames.length];
@@ -104,20 +209,46 @@ public class Main {
 			int[][] bench_matrix = makeBenchMatrix(data);
 			//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
 			int presolve = 9999999;
-			benchResults[i] = benchimol(bench_matrix ,presolve);
-			fusionResults[i] = fusionAsym(data, presolve);
+			benchimol(bench_matrix, presolve);
+			benchResults[i] = bench.firstLb;
+			fusionAsym(data, presolve, true);
+			fusionResults[i] =fusion.firstLb;
 		}
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/results.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/resultsFirstLBHeldKarp.csv"))) {
 			bw.write("," + String.join(",", filenames)); bw.newLine();
-			bw.write("benchimol," + Arrays.stream(benchResults)
+			bw.write("sans entrelacer," + Arrays.stream(benchResults)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("maMéthode," + Arrays.stream(fusionResults)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 		}
+	}
 
 
+	private static void resultsFirstLB_vsSequencing() throws IOException {
+		String[] filenames = getATSPFilenames();
+		double[] fusionResults = new double[filenames.length];
+		double[] benchResults = new double[filenames.length];
+		for (int i = 0; i < filenames.length; i++){
+			int[][] data = getATSPInstance(filenames[i]);
+			n = data.length;
 
+			int[][] bench_matrix = makeBenchMatrix(data);
+			//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
+			int presolve = 9999999;
+			fusionAsym(data ,presolve, false);
+			benchResults[i] = fusion.firstLb;
+			fusionAsym(data, presolve, true);
+			fusionResults[i] =fusion.firstLb;
+		}
+
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/resultsFirstLBSequencing.csv"))) {
+			bw.write("," + String.join(",", filenames)); bw.newLine();
+			bw.write("sans entrelacer," + Arrays.stream(benchResults)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("maMéthode," + Arrays.stream(fusionResults)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+		}
 	}
 
 	private static void randomLoop(){
@@ -125,13 +256,15 @@ public class Main {
 		while (true){
 			int[][] data = randomMatrix();
 			int[][] bench_matrix = makeBenchMatrix(data);
-			int presolve = 9999999;
-			int solBench = benchimol(bench_matrix ,presolve);
-			int solFusion = fusionAsym(data, presolve);
+			int presolve = 500000;
+			fusionAsym(data, presolve, false);
+			double solNoInterleave = fusion.firstLb;
+			fusionAsym(data, presolve, true);
+			double solFusion = fusion.firstLb;
 
-			/*if(solBench != solFusion) {
+			if(solNoInterleave != solFusion) {
 				int a = 3;
-			}*/
+			}
 		}
 	}
 
@@ -153,7 +286,7 @@ public class Main {
 		return bench;
 	}
 
-	private static int seed = 6778;
+	private static int seed = 6829;
 	public static int[][] randomMatrix() {
 		Random rand = new Random(seed);
 		seed++;
@@ -164,7 +297,7 @@ public class Main {
 				if (i == j) {
 					matrix[i][i] = 99999;
 				} else {
-					matrix[i][j] = rand.nextInt(10);
+					matrix[i][j] = rand.nextInt(50);
 				}
 
 		return matrix;
@@ -240,7 +373,7 @@ public class Main {
 		digraph = model.digraphVar("G", GLB, GUB);
 	}
 
-	private static int search(int[][] costMatrix, boolean benchMatrix){
+	private static Solver search(int[][] costMatrix, boolean benchMatrix){
 		Solver solver = model.getSolver();
 		// Fail first principle (requires a very good initial upper bound)
 		solver.setSearch(new GraphSearch(graph, costMatrix).configure(GraphSearch.MIN_COST).useLastConflict());
@@ -265,10 +398,11 @@ public class Main {
 				System.out.println("no solution found");
 			}
 		}
-		return solver.getBestSolutionValue().intValue() + M*n;
+		return solver;
+		//return solver.getBestSolutionValue().intValue() + M*n;
 	}
 
-	private static int searchAsym(int[][] costMatrix){
+	private static Solver searchAsym(int[][] costMatrix){
 		Solver solver = model.getSolver();
 		// Fail first principle (requires a very good initial upper bound)
 		solver.setSearch(new GraphSearch(digraph, costMatrix, fusion).configure(GraphSearch.LEX).useLastConflict());
@@ -288,14 +422,14 @@ public class Main {
 				System.out.println("no solution found");
 			}
 		}
-
-		return solver.getBestSolutionValue().intValue();
+		//return (int) solver.getNodeCount();
+		return solver;
 	}
 
 	private static PropFusionASym fusion = null;
 	private static PropLagr_OneTree bench = null;
-	private static int benchimol(int[][] costMatrix, int initialUB){
-		createModel(costMatrix, - (n-1)*M);
+	private static Solver benchimol(int[][] costMatrix, int initialUB){
+		createModel(costMatrix, - (n)*M+initialUB);
         // constraints (TSP basic model + lagrangian relaxation)
 		bench = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		model.tsp(graph, totalCost, costMatrix, 1, bench).post();
@@ -309,15 +443,15 @@ public class Main {
 		search(costMatrix, false);
 	}*/
 
-	private static int fusionAsym(int[][] costMatrix, int initialUB){
+	private static Solver fusionAsym(int[][] costMatrix, int initialUB, boolean interleave){
 		createModelAsym(costMatrix, initialUB);
-		fusion = new PropFusionASym(digraph, totalCost, costMatrix);
+		fusion = new PropFusionASym(digraph, totalCost, costMatrix, interleave);
 		// constraints (TSP basic model + lagrangian relaxation)
 		model.tsp_fusion_asym(digraph, totalCost, costMatrix, fusion).post();
 		return searchAsym(costMatrix);
 	}
 
-	private static int fusionBench(int[][] smallCostMatrix, int[][] bigCostMatrix, int initialUB){
+	private static Solver fusionBench(int[][] smallCostMatrix, int[][] bigCostMatrix, int initialUB){
 		createModel(bigCostMatrix, initialUB);
 		PropSymVarFusionASym prop = new PropSymVarFusionASym(graph, totalCost, smallCostMatrix);
 		// constraints (TSP basic model + lagrangian relaxation)
