@@ -74,17 +74,15 @@ public class Main {
 	private static IntVar totalCost;
 	private static UndirectedGraphVar graph;
 	private static DirectedGraphVar digraph;
-	private static int LIMIT = 300; // in seconds
+	private static int LIMIT = 130; // in seconds
 	private static int n;
 	private static int M = 1000000;
 	private static int bigValue = 999999999;
     public static void main(String[] args) throws IOException {
-		LIMIT = 1;
 
 		//resultsFirstLB_vsHeldKarp();
 		//resultsFirstLB_vsSequencing();
 
-		LIMIT = 30;
 		//resultsTimeAndNodes_vsHeldKarp();
 		resultsTimeAndNodes_vsSequencing();
 
@@ -92,11 +90,11 @@ public class Main {
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		int[][] data = getATSPInstance("ft70.atsp");
+		int[][] data = getATSPInstance("test.atsp");
 		n = data.length;
 		int[][] bench_matrix = makeBenchMatrix(data);
 		int presolve = 99999;
-		fusionAsym(data, presolve, true);
+		//fusionAsym(data, presolve, true);
 		//benchimol(bench_matrix, presolve);
     }
 
@@ -185,7 +183,7 @@ public class Main {
 			//benchNodeCount[i] = resultsBench.getNodeCount();
 		}
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/resultsTimeSequencingBIGFILTER.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/resultsTimeSequencingDernierEffort.csv"))) {
 			bw.write("," + String.join(",", filenames)); bw.newLine();
 			/*bw.write("benchimol temps," + Arrays.stream(benchTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
@@ -405,7 +403,7 @@ public class Main {
 	private static Solver searchAsym(int[][] costMatrix){
 		Solver solver = model.getSolver();
 		// Fail first principle (requires a very good initial upper bound)
-		solver.setSearch(new GraphSearch(digraph, costMatrix, fusion).configure(GraphSearch.LEX).useLastConflict());
+		solver.setSearch(new GraphSearch(digraph, costMatrix, fusion).configure(GraphSearch.MIN_COST).useLastConflict());
 		solver.limitTime(LIMIT+"s");
 
 		model.setObjective(Model.MINIMIZE,totalCost);

@@ -377,18 +377,31 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 	private HashMap<List<Integer>, Double> cycleMap = new HashMap<>();
 
+	public Result testtest(
+			double[][] matrix,
+			boolean ignoreStars,
+			int[][] starZeros
+	) throws ContradictionException {
+		int a = 3;
+		return null;
+	}
+
+	int count = 0;
+
 	public Result edmondsIteration(
 			double[][] matrix,
 			boolean ignoreStars,
 			int[][] starZeros
 	) throws ContradictionException {
-		if(starZeros == null && !ignoreStars /*|| countStars(starZeros) < n*/){
+		//TODO check je fais quoi avec ça, est-ce que j'exécute juste si countStars est n? ou >n/2? ou 3n/4 ?
+		/*if(starZeros == null && !ignoreStars || countStars(starZeros) < n){
 			return new Result(0, matrix, null);
-		}
+		}*/
+		testtest(matrix, ignoreStars, starZeros);
+		count++;
 
 		int n = matrix.length;
 		double lb = 0;
-
 		int[][] edges;
 		if(!ignoreStars){
 			edges = starZeros;
@@ -434,8 +447,9 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		// Utiliser tuples pour cycleEdgesMask
 
 		for(List<Integer> cycle : cycles){
-			if (cycle.size() > 2){
-				int a =3;
+			int k = 4;
+			if (cycle.size() > n/k && cycle.size() < n - n/k){
+				continue;
 			}
 			boolean[][] cycleEdgesMask =
 					new boolean[edges.length][edges[0].length];
@@ -753,6 +767,65 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		basicFiltering(bigReducedCosts, lowerBound);
 	}
 
+
+	private void filterFloydWarshall(double lowerBound, int zeros[][]) throws ContradictionException {
+		//build base matrix
+		double[][] W = new double[2*n][2*n];
+		for (int i = 0; i <2*n; i++) {
+			for (int j = 0; j < 2*n; j++) {
+				W[i][j] = getCostFlow(i,j, zeros);
+			}
+		}
+
+		//TODO checker ici boucle par boucle
+		/*for (int k = 0; k < 2*n; k++) {
+			for (int i = 0; i < 2*n; i++) {
+				for (int j = 0; j < 2*n; j++) {
+					W[i][j] = Math.min(W[i][j], W[i][k] + W[k][j]);
+				}
+			}
+		}*/
+		for (int k = 0; k < 2*n; k++) {
+			for (int i = 0; i < 2*n; i++) {
+				for (int j = 0; j < 2*n; j++) {
+					W[i][j] = Math.min(W[i][j], W[i][k] + W[k][j]);
+				}
+			}
+		}
+
+		double[][] bigReducedCosts = new double[n][n];
+		for (int i = 0; i < n; i++) {
+			for (int j = 0; j < n; j++) {
+				if(i == j){
+					bigReducedCosts[i][j] = bigValue;
+				}
+				else{
+					bigReducedCosts[i][j] = W[j+n][i] + reducedCosts[i][j];
+				}
+			}
+		}
+		basicFiltering(bigReducedCosts, lowerBound);
+	}
+
+
+	private double getCostFlow(int from, int to, int[][] zeros){
+		if(from < n && to < n || from >= n && to >= n){
+			return bigValue;
+		}
+		if (from >= n){
+			// Should transpose
+			if(zeros[to][from-n] == 1){
+				return 0;
+			}
+			return bigValue;
+		}else{
+			if(zeros[from][to-n] == 1){
+				return bigValue;
+			}
+			return reducedCosts[from][to-n];
+		}
+	}
+
 	private double getBigReducedCostValue(int i, int j, double[][] reducedCostsClone, double[][] originalRc){
 		for (int ii = 0; ii < n; ii++) {
 			if (ii != i){
@@ -765,7 +838,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 			}
 		}
 		double lb = 0;
-		int bigHungarianIterations = 10;
+		int bigHungarianIterations = 1;
 		double[][] rc = reducedCostsClone;
 		for (int k = 0; k < bigHungarianIterations; k++) {
 			Result result = hungarianIteration(rc);
@@ -841,7 +914,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 					}*/
 				}
 			}
-			if(result.zeros != null && countStars(result.zeros) == n){
+			/*if(result.zeros != null && countStars(result.zeros) == n){
 				// Ceci n'est pas inquiétant. À regarder les cas où realLb > lowerbound, probablement du à des augmentations de cycle qu'on peut enlever.
 				int realLb = getRealLowerBound(result.zeros);
 				if(realLb < lowerBound){
@@ -850,28 +923,13 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 					}
 					int a = 3;
 				}
-			}
+			}*/
 			basicFiltering(reducedCosts, lowerBound);
 
 			if (lowerBound > maxLb) {
 				maxLb = lowerBound;
 				if (result.zeros != null){
 					bestStarZeros = result.zeros;
-				}
-				if(result.zeros != null && countStars(result.zeros) == n){
-					int sum = 0;
-					for (int ii = 0; ii < n; ii++) {
-						for (int j = 0; j < n; j++) {
-							if (result.zeros[ii][j] == 1){
-								sum += originalCosts[ii][j];
-							}
-
-						}
-					}
-
-					if(sum < lowerBound){
-						int a =3;
-					}
 				}
 				bestReducedCosts = reducedCosts.clone();
 				nonImprove = 0;
@@ -892,6 +950,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 				result = null;
 				while(result == null || result.lb > 0) {
 					result = edmondsIteration(reducedCosts, true/*true*/, null/*result.zeros*/);
+					Result r = testtest(reducedCosts, false,result.zeros);
 					lowerBound += result.lb;
 					/*if(getData){
 						dataBound.add((int) lowerBound);
@@ -911,24 +970,27 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 			costVar.updateLowerBound((int) Math.ceil(maxLb), this);
 			i++;
 		}
-//System.out.println(i);
-
+        //System.out.println(i);
 
 		//System.out.println(removed);
-		/*if(costVar.getUB() - maxLb < maxLb/2){
-			filterBigReducedCosts(maxLb, bestReducedCosts);
-		}*/
+		if(costVar.getUB() - maxLb < maxLb/2){
+		//	filterBigReducedCosts(maxLb, bestReducedCosts);
+		}
 
-
-
-		filterBigReducedCosts(lowerBound, reducedCosts);
+		result = hungarianIteration(reducedCosts);
+		lowerBound += result.lb;
+		reducedCosts = result.array;
+		if(countStars(result.zeros) == n){
+			filterFloydWarshall(lowerBound, result.zeros);
+		}
+		//filterBigReducedCosts(lowerBound, reducedCosts);
 		removed = 0;
 		boundDecreased = 0;
+		//count = 0;
 		if(maxLb > 5600) {
 			int a = 3;
 		}
 	}
-
 
 	public int getRealLowerBound(int[][] starZeros){
 		int lb = 0;
