@@ -90,6 +90,7 @@ public class PropHamiltonianCycle extends Propagator<UndirectedGraphVar> {
 
 	@Override
 	public void propagate(int evtmask) throws ContradictionException {
+		int a =3;
 		for (int i = 0; i < n; i++) {
 			e1[i].set(i);
 			e2[i].set(i);

@@ -27,11 +27,9 @@
 
 package org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation;
 
-import gnu.trove.list.array.TIntArrayList;
-import org.chocosolver.graphsolver.cstrs.cost.GraphLagrangianRelaxation;
 import org.chocosolver.graphsolver.cstrs.cost.trees.lagrangianRelaxation.AbstractTreeFinder;
-import org.chocosolver.graphsolver.variables.DirectedGraphVar;
 import org.chocosolver.graphsolver.variables.GraphEventType;
+import org.chocosolver.graphsolver.variables.UndirectedGraphVar;
 import org.chocosolver.solver.constraints.Propagator;
 import org.chocosolver.solver.constraints.PropagatorPriority;
 import org.chocosolver.solver.exception.ContradictionException;
@@ -39,9 +37,7 @@ import org.chocosolver.solver.variables.IntVar;
 import org.chocosolver.solver.variables.Variable;
 import org.chocosolver.solver.variables.events.IntEventType;
 import org.chocosolver.util.ESat;
-import org.chocosolver.util.objects.graphs.DirectedGraph;
 import org.chocosolver.util.objects.graphs.UndirectedGraph;
-import org.chocosolver.util.objects.setDataStructures.ISet;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,7 +47,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -62,23 +57,22 @@ import java.util.stream.IntStream;
  *
  * @author Jean-Guillaume Fages
  */
-public class PropFusionASym extends Propagator<Variable> implements GraphLagrangianRelaxation {
+public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	//***********************************************************************************
 	// VARIABLES
 	//***********************************************************************************
 
-	protected DirectedGraph g;
-	protected DirectedGraphVar gV;
+	protected UndirectedGraph g;
+	protected UndirectedGraphVar gV;
 	protected IntVar costVar;
 	protected int n;
-	protected int[][] originalCosts;
+	protected int[][] originalSmallCosts;
 	protected double[][] costs;
 	protected double[][] reducedCosts;
 	protected double[] penalities;
 	protected double totalPenalities;
 	protected UndirectedGraph mst;
-	protected TIntArrayList mandatoryArcsList;
 	protected double step;
 	protected AbstractTreeFinder HKfilter, HK;
 	protected boolean waitFirstSol;
@@ -351,31 +345,17 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		}
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < n; j++) {
-				if (gV.getUB().isArcOrEdge(i,j) && i != j && reducedCostsArray[i][j] > delta) {
+				if (gV.getUB().isArcOrEdge(i+n,j) && i != j && reducedCostsArray[i][j] > delta) {
 					reducedCostsArray[i][j] = bigValue;
 					removed++;
-						remove(i, j);
+					remove(i+n, j);
 				}
 			}
 		}
 		//mandFiltering();
 	}
 
-	public void mandFiltering() throws ContradictionException {
-		for (int i = 0; i < n; i++) {
-			ISet succ = gV.getPotSuccOf(i);
-			ISet pred = gV.getPotPredOf(i);
-			if(succ.size() == 1){
-				gV.enforceArc(i, succ.min(), this);
-			}
-
-			if(pred.size() == 1){
-				gV.enforceArc(pred.min(), i, this);
-			}
-		}
-	}
-
-	private HashMap<List<Integer>, Double> cycleMap = new HashMap<>();
+	private HashMap<Set<Integer>, Double> cycleMap = new HashMap<>();
 
 	public Result testtest(
 			double[][] matrix,
@@ -397,7 +377,6 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		/*if(starZeros == null && !ignoreStars || countStars(starZeros) < n){
 			return new Result(0, matrix, null);
 		}*/
-		testtest(matrix, ignoreStars, starZeros);
 		count++;
 
 		int n = matrix.length;
@@ -545,15 +524,9 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 			// For logging cycle changes
 			boundDecreased += boundChange;
-			int minIndex = cycle.indexOf(Collections.min(cycle));
-			for (int i = 0; i < minIndex; i++) {
-				cycle.add(cycle.get(0));
-				cycle.remove(0);
-			}
 			if (minimum != 0){
-				cycleMap.merge(cycle, boundChange, Double::sum);
+				cycleMap.merge(new HashSet<>(cycle), minimum, Double::sum);
 			}
-
 
 			for (int col = 0; col < n; col++) {
 				double min = Double.POSITIVE_INFINITY;
@@ -585,22 +558,30 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 	int boundDecreased = 0;
 
 	////////////////////////////////////////
-	protected PropFusionASym(Variable[] vars, int[][] costMatrix) {
-		super(vars, PropagatorPriority.CUBIC, false);
+	int M;
+	protected PropFusionAsymUndirectedGraphVar(Variable[] vars, int[][] costMatrix) {
+		super(vars, PropagatorPriority.VERY_SLOW, false);
 		graphData = "";
-		n = costMatrix.length;
-		originalCosts = costMatrix;
+		n = costMatrix.length / 2;
+		originalSmallCosts = new int[n][n];
+		M = costMatrix[n][0];
+		for (int i = 0; i < n; i++) {
+			for (int j = 0; j < n; j++) {
+				if (i == j){
+					originalSmallCosts[i][j] = bigValue;
+				} else {
+					originalSmallCosts[i][j] = costMatrix[i+n][j];
+				}
+			}
+		}
 		costs = new double[n][n];
 		reducedCosts = new double[n][n];
 		totalPenalities = 0;
 		penalities = new double[n];
-		mandatoryArcsList = new TIntArrayList();
-		HK = new PrimOneTreeFinder(n, this);
-		HKfilter = new KruskalOneTree_GAC(n, this);
 	}
 	boolean interleave;
 
-	public PropFusionASym(DirectedGraphVar graph, IntVar cost, int[][] costMatrix, boolean interleave) {
+	public PropFusionAsymUndirectedGraphVar(UndirectedGraphVar graph, IntVar cost, int[][] costMatrix, boolean interleave) {
 		this(new Variable[]{graph, cost}, costMatrix);
 		g = graph.getUB();
 		gV = graph;
@@ -614,131 +595,31 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 	//////////////////////UTILS/////////////
 
-
-	public static Result edmondsFull(double[][] matrix)  {
-		int lb = 0;
-		int root = 0;
-		int n = matrix.length;
-		double[][] reduced = new double[n][n];
-		for (int i = 0; i < n; i++)
-			reduced[i] = matrix[i].clone();
-
-		// Step 1: Column reduction — subtract min incoming for each non-root node
-		for (int v = 0; v < n; v++) {
-			double minCost = Double.POSITIVE_INFINITY;
-			for (int u = 0; u < n; u++)
-				if (u != v) minCost = Math.min(minCost, reduced[u][v]);
-			if (minCost == Double.POSITIVE_INFINITY) return null; // no arborescence
-			for (int u = 0; u < n; u++)
-				reduced[u][v] -= minCost;
-			lb += minCost;
-		}
-
-		// Build adjacency matrix of zeros (min incoming edges) for dfsFindCycle
-		int[][] edges = new int[n][n];
-		int[] minParent = new int[n];
-		for (int v = 0; v < n; v++) {
-			if (v == root) continue;
-			for (int u = 0; u < n; u++) {
-				if (u != v && reduced[u][v] == 0) {
-					edges[u][v] = 1;
-					minParent[v] = u;
-					break;
-				}
-			}
-		}
-
-		// Step 2: Find cycle using dfsFindCycle
-		Set<Integer> visited = new HashSet<>();
-		List<Integer> cycle = null;
-		for (int i = 0; i < n; i++) {
-			if (!visited.contains(i)) {
-				List<Integer> c = dfsFindCycle(edges, i, visited, new HashMap<>(), new HashSet<>());
-				if (c != null) { cycle = c; break; }
-			}
-		}
-
-		// No cycle → reduced costs are already valid, return them
-		if (cycle == null) return new Result(lb, reduced, null);
-
-		// Step 3: Contract cycle — adjust entering edge costs
-		boolean[] inCycle = new boolean[n];
-		for (int v : cycle) inCycle[v] = true;
-
-		// Build contracted graph (cycle → supernode n)
-		double[][] newMatrix = new double[n + 1][n + 1];
-		for (double[] row : newMatrix) Arrays.fill(row, bigValue);
-		int[] cycleEnter = new int[n];
-		int[] cycleOut = new int[n];
-		for (int u = 0; u < n; u++) {
-			for (int v = 0; v < n; v++) {
-				if (reduced[u][v] == bigValue) continue;
-				int newU = u;
-				int newV = v;
-
-				if(inCycle[u]){
-					newU = n;
-				}
-
-				if(inCycle[v]){
-					newV = n;
-				}
-
-				if (newU == newV) continue;
-				if (reduced[u][v] < newMatrix[newU][newV]){
-					//if(newU == n)
-					//	cycleOut[u] = v;
-					if(newV == n)
-						cycleEnter[u] = v;
-					newMatrix[newU][newV] = reduced[u][v];
-				}
-
-			}
-		}
-
-		Result result = edmondsFull(newMatrix);
-		lb += result.lb;
-		double[][] contractedReduced = result.array;
-		if (contractedReduced == null) return null;
-
-		// Step 4: Expand back — map contracted reduced costs back to original nodes
-		for (int u = 0; u < n; u++) {
-			for (int v = 0; v < n; v++) {
-				if (cycle.contains(u) || cycle.contains(v)) continue;
-				reduced[u][v] = contractedReduced[u][v];
-			}
-			// Edges enter cycle
-			for (int v : cycle) {
-				//TODO ICI soustraire le minimum, réfléchir à comment faire ça similaire à la méthode itération
-				//reduced[u][v] -= (reduced[cycleEnter[v]][v] - contractedReducedt) ;
-			}
-
-			//Edges out cycle ??
-		}
-		result = new Result(lb, reduced, null);
-		return result;
-	}
-
-
-
-	private void fillDiagonal(double[][] matrix, double value){
-		for (int i = 0; i < matrix.length; i++) {
-			matrix[i][i] = value;
-		}
-	}
-
+	boolean firstProp = true;
 	////////////////////////////////////////
+	double baseLowerBound = 0;
+	private void enforceInitial() throws ContradictionException {
+		for (int i = 0; i < n; i++) {
+			gV.enforceArc(i+n, i, this);
+			baseLowerBound += M;
+			for (int j = 0; j < n; j++) {
+				gV.removeArc(i,j, this);
+				gV.removeArc(i+n,j+n, this);
+			}
+		}
+	}
 	public void propagate(int evtmask) throws ContradictionException {
 		//graphData += gV.graphVizExport() + "\n---\n";
+		if (firstProp){
+			enforceInitial();
+			firstProp = false;
+		}
 
 		if (waitFirstSol && getModel().getSolver().getSolutionCount() == 0) {
 			return;//the UB does not allow to prune
 		}
 		// initialisation
-		rebuild();
 		setCosts();
-		//edmondsFull(costs);
-		updateRemainingArcs();
 		int lb;
 		lb = costVar.getLB();
 
@@ -749,7 +630,6 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		if(firstLb == Double.NEGATIVE_INFINITY){
 			firstLb = costVar.getLB();
 		}
-		//System.out.println("removed " + gV.removed);
 	}
 
 	int iter = 0;
@@ -868,62 +748,35 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 	protected void fusionRelaxationAsym() throws ContradictionException {
 		iter++;
-		double lowerBound = 0;
+		double lowerBound = M*n;
 		double alpha = 2;
 		double beta = 0.5;
 		double maxLb;
-		maxLb = 0;
+		maxLb = Double.NEGATIVE_INFINITY;
 		Result result = null;
 		double[][] bestReducedCosts = null;
 		reducedCosts = Arrays.stream(costs).map(double[]::clone).toArray(double[][]::new);
 		int maxNonImprove = 10;
-		nbSprints = 10*n;
+		nbSprints = 5*n;
 		cycleMap = new HashMap<>();
 		int nonImprove = 0;
 		int i = 0;
-		/*if(getData){
-			dataBound = new ArrayList<>();
-			dataTime = new ArrayList<>();
-			dataIsHungarian = new ArrayList<>();
-			startTime = System.currentTimeMillis();
-		}*/
 
 		while (i < nbSprints && nonImprove < maxNonImprove){
-			updateRemainingArcs();
+			//updateRemainingArcs();
 			if(interleave) {
 				result = hungarianIteration(reducedCosts);
 				lowerBound += result.lb;
 				reducedCosts = result.array;
-				/*if(getData){
-					dataBound.add((int) lowerBound);
-					dataTime.add((int) (System.currentTimeMillis() - startTime));
-					dataIsHungarian.add(true);
-				}*/
 			}
-
 			else{
 				while(result == null || result.lb > 0) {
 					result = hungarianIteration(reducedCosts);
 					lowerBound += result.lb;
 					reducedCosts = result.array;
 					basicFiltering(reducedCosts, lowerBound);
-					/*if(getData){
-						dataBound.add((int) lowerBound);
-						dataTime.add((int) (System.currentTimeMillis() - startTime));
-						dataIsHungarian.add(true);
-					}*/
 				}
 			}
-			/*if(result.zeros != null && countStars(result.zeros) == n){
-				// Ceci n'est pas inquiétant. À regarder les cas où realLb > lowerbound, probablement du à des augmentations de cycle qu'on peut enlever.
-				int realLb = getRealLowerBound(result.zeros);
-				if(realLb < lowerBound){
-					if(lowerBound - realLb != boundDecreased){
-						int d =3;
-					}
-					int a = 3;
-				}
-			}*/
 			basicFiltering(reducedCosts, lowerBound);
 
 			if (lowerBound > maxLb) {
@@ -931,7 +784,6 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 				if (result.zeros != null){
 					bestStarZeros = result.zeros;
 				}
-				bestReducedCosts = reducedCosts.clone();
 				nonImprove = 0;
 			}
 			else {
@@ -940,17 +792,10 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 			if(interleave){
 				result = edmondsIteration(reducedCosts, false,result.zeros);
 				lowerBound += result.lb;
-				/*if(getData){
-					dataBound.add((int) lowerBound);
-					dataTime.add((int) (System.currentTimeMillis() - startTime));
-					dataIsHungarian.add(false);
-				}*/
-
 			} else {
 				result = null;
 				while(result == null || result.lb > 0) {
 					result = edmondsIteration(reducedCosts, true/*true*/, null/*result.zeros*/);
-					Result r = testtest(reducedCosts, false,result.zeros);
 					lowerBound += result.lb;
 					/*if(getData){
 						dataBound.add((int) lowerBound);
@@ -974,7 +819,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 
 		//System.out.println(removed);
 		if(costVar.getUB() - maxLb < maxLb/2){
-		//	filterBigReducedCosts(maxLb, bestReducedCosts);
+			//filterBigReducedCosts(maxLb, bestReducedCosts);
 		}
 
 		result = hungarianIteration(reducedCosts);
@@ -997,7 +842,7 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < n; j++) {
 				if(starZeros[i][j] == 1){
-					lb += originalCosts[i][j];
+					lb += originalSmallCosts[i][j];
 				}
 			}
 		}
@@ -1012,25 +857,12 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 	// DETAILS
 	//***********************************************************************************
 
-	protected void rebuild() {
-		mandatoryArcsList.clear();
-		ISet nei;
-		for (int i = 0; i < n; i++) {
-			nei = gV.getMandSuccOf(i);
-			for (int j : nei) {
-				if (i < j) {
-					mandatoryArcsList.add(i * n + j);
-				}
-			}
-		}
-	}
-
 	protected void setCosts() {
 		for (int i = 0; i < n; i++) {
 			for (int j = 0; j < n; j++) {
 				//TODO à tester ci-dessous
-				if(i != j && gV.getUB().arcExists(i,j) /*&& !gV.getLB().arcExists(j,i)*/){
-					costs[i][j] = originalCosts[i][j];
+				if(i != j && gV.getUB().isArcOrEdge(i+n,j) /*&& !gV.getLB().arcExists(j,i)*/){
+					costs[i][j] = originalSmallCosts[i][j];
 				}
 				else {
 					costs[i][j] = bigValue;
@@ -1050,9 +882,12 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 				.collect(Collectors.toCollection(HashSet::new));
 
 		for (int i = 0; i < n; i++) {
-			if(!gV.getMandSuccOf(i).isEmpty()){
-				//un seul élément
-				int j = gV.getMandSuccOf(i).min();
+			if(gV.getMandNeighOf(i+n).size() == 2){
+				//2 voisins : 1 le -M et l'autre le vrai arc
+				int j = gV.getMandNeighOf(i).min();
+				if (j == i){
+					j = gV.getMandNeighOf(i).max();
+				}
 				remainingRows.remove(i);
 				remainingCols.remove(j);
 			}
@@ -1097,12 +932,9 @@ public class PropFusionASym extends Propagator<Variable> implements GraphLagrang
 		return -(((double) costVar.getUB()) + totalPenalities);
 	}
 
-	public TIntArrayList getMandatoryArcsList() {
-		return mandatoryArcsList;
-	}
 
 	public boolean isMandatory(int i, int j) {
-		return gV.getMandSuccOf(i).contains(j);
+		return gV.getMandNeighOf(i).contains(j);
 	}
 
 	public void waitFirstSolution(boolean b) {

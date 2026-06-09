@@ -34,7 +34,8 @@
 
 package org.chocosolver.graphsolver.search.strategy;
 
-import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionASym;
+import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionAsymUndirectedGraphVar;
+import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropLagr_OneTree;
 import org.chocosolver.graphsolver.search.GraphAssignment;
 import org.chocosolver.graphsolver.search.GraphDecision;
 import org.chocosolver.graphsolver.variables.GraphVar;
@@ -57,12 +58,15 @@ public class GraphSearch extends GraphStrategy {
 	public static final int MAX_DELTA_DEGREE = 6;
 	public static final int MIN_COST = 7;
 	public static final int MAX_COST = 8;
+	public static final int REDUCED_COST_HK= 9;
+	public static final int REDUCED_COST_INTERLEAVE = 10;
 
 	// variables
 	private int n;
 	private int mode;
 	private int[][] costs;
-	private PropFusionASym prop;
+	private PropFusionAsymUndirectedGraphVar interleave;
+	private PropLagr_OneTree hk;
 	private GraphAssignment decisionType;
 	private int from, to;
 	private int value;
@@ -91,9 +95,17 @@ public class GraphSearch extends GraphStrategy {
 	}
 
 
-	public GraphSearch(GraphVar graphVar, int[][] costMatrix, PropFusionASym prop) {
+	public GraphSearch(GraphVar graphVar, int[][] costMatrix, PropFusionAsymUndirectedGraphVar prop) {
 		super(graphVar, null, null, NodeArcPriority.ARCS);
-		this.prop = prop;
+		this.interleave = prop;
+		costs = costMatrix;
+		n = g.getNbMaxNodes();
+	}
+
+
+	public GraphSearch(GraphVar graphVar, int[][] costMatrix, PropLagr_OneTree prop) {
+		super(graphVar, null, null, NodeArcPriority.ARCS);
+		this.hk = prop;
 		costs = costMatrix;
 		n = g.getNbMaxNodes();
 	}
@@ -175,8 +187,10 @@ public class GraphSearch extends GraphStrategy {
 			if (!g.getMandSuccOrNeighOf(i).contains(j)) {
 				int v = -1;
 				switch (mode) {
-					case LEX:
-						if(this.prop != null && prop.bestStarZeros != null && prop.bestStarZeros[i][j] == 1) {
+					case REDUCED_COST_HK:
+						//TODO
+						if(this.hk != null && hk.mst != null
+								&& hk.mst.edgeExists(i,j) ) {
 							from = i;
 							to = j;
 							yes++;
@@ -185,11 +199,27 @@ public class GraphSearch extends GraphStrategy {
 						else{
 							//Min cost
 							no++;
-							v = costs[i][j];
+							//v = costs[i][j];
 						}
-						//from = i;
-						//to = j;
 						break;
+					case REDUCED_COST_INTERLEAVE:
+						if(i > n/2 && this.interleave != null && interleave.bestStarZeros != null
+								&& interleave.bestStarZeros[i-n/2][j] == 1) {
+							from = i;
+							to = j;
+							yes++;
+							return true;
+						}
+						else{
+							//Min cost
+							no++;
+							//TODO check si ça marche ici
+							//v = costs[i][j];
+						}
+						break;
+					case LEX:
+						from = i;
+						to = j;
 					case MIN_P_DEGREE:
 					case MAX_P_DEGREE:
 						v = g.getPotSuccOrNeighOf(i).size()

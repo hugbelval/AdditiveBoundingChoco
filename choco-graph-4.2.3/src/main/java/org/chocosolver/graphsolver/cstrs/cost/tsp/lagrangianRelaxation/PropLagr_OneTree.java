@@ -63,7 +63,7 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 	protected double[][] costs;
 	protected double[] penalities;
 	protected double totalPenalities;
-	protected UndirectedGraph mst;
+	public UndirectedGraph mst;
 	protected TIntArrayList mandatoryArcsList;
 	protected double step;
 	protected AbstractTreeFinder HKfilter, HK;
@@ -120,6 +120,10 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 	//System.out.println("removed " + gV.removed);
 	}
 
+
+
+
+
 	double hkb;
 	protected void lagrangianRelaxation() throws ContradictionException {
 		double alpha = 2;
@@ -169,8 +173,8 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 			updateCostMatrix();
 			alpha *= beta;
 			beta /= 2;
-
 		}
+
 	}
 
 	//***********************************************************************************

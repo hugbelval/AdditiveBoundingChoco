@@ -1095,6 +1095,17 @@ public interface IGraphConstraintFactory {
 		return new Constraint("TSP", props);
 	}
 
+	default Constraint tsp_general(UndirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, Propagator[] props) {
+		props = ArrayUtils.append(props, hamiltonianCycle(GRAPHVAR).getPropagators());//,
+		//new Propagator[]{new PropCycleCostSimple(GRAPHVAR, COSTVAR, EDGE_COSTS)});
+		return new Constraint("TSP", props);
+	}
+
+	default Constraint tsp_fusion_asym(DirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, Propagator fusion) {
+		// Manque juste propCostSimple
+		Propagator[] props =ArrayUtils.append(hamiltonianCircuit(GRAPHVAR).getPropagators(), new Propagator[]{fusion});
+		return new Constraint("TSPFusion", props);
+	}
 
 	default Constraint tsp_fusion(UndirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, Propagator prop) {
 		Propagator[] props = ArrayUtils.append(hamiltonianCycle(GRAPHVAR).getPropagators());//,
@@ -1104,11 +1115,7 @@ public interface IGraphConstraintFactory {
 		return new Constraint("TSPFusion", props);
 	}
 
-	default Constraint tsp_fusion_asym(DirectedGraphVar GRAPHVAR, IntVar COSTVAR, int[][] EDGE_COSTS, Propagator fusion) {
-		// Manque juste propCostSimple
-		Propagator[] props =ArrayUtils.append(hamiltonianCircuit(GRAPHVAR).getPropagators(), new Propagator[]{fusion});
-		return new Constraint("TSPFusion", props);
-	}
+
 
 	/**
 	 * Creates a degree-constrained minimum spanning tree constraint :

@@ -43,7 +43,7 @@ public class GraphGeneration {
             int[][] data = getATSPInstance(filenames[i]);
             n = data.length;
             int presolve = 9999999;
-            fusionAsym(data, presolve, true);
+            //fusionAsym(data, presolve, true);
             try (FileWriter writer = new FileWriter(REPO + "/" + filenames[i] + ".txt")) {
                 writer.write(fusion.graphData);
                 System.out.println("Successfully wrote to file.");
@@ -131,7 +131,7 @@ public class GraphGeneration {
         //return solver.getBestSolutionValue().intValue() + M*n;
     }
 
-    private static Solver searchAsym(int[][] costMatrix){
+    /*private static Solver searchAsym(int[][] costMatrix){
         Solver solver = model.getSolver();
         // Fail first principle (requires a very good initial upper bound)
         solver.setSearch(new GraphSearch(digraph, costMatrix, fusion).configure(GraphSearch.LEX).useLastConflict());
@@ -153,7 +153,7 @@ public class GraphGeneration {
         }
         //return (int) solver.getNodeCount();
         return solver;
-    }
+    }*/
 
     private static PropFusionASym fusion = null;
     private static PropLagr_OneTree bench = null;
@@ -165,11 +165,11 @@ public class GraphGeneration {
 		search(costMatrix, false);
 	}*/
 
-    private static Solver fusionAsym(int[][] costMatrix, int initialUB, boolean interleave){
+   /* private static Solver fusionAsym(int[][] costMatrix, int initialUB, boolean interleave){
         createModelAsym(costMatrix, initialUB);
         fusion = new PropFusionASym(digraph, totalCost, costMatrix, interleave);
         // constraints (TSP basic model + lagrangian relaxation)
         model.tsp_fusion_asym(digraph, totalCost, costMatrix, fusion).post();
         return searchAsym(costMatrix);
-    }
+    }*/
 }
