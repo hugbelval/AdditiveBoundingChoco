@@ -30,17 +30,25 @@ package org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation;
 import org.chocosolver.graphsolver.cstrs.cost.trees.lagrangianRelaxation.AbstractTreeFinder;
 import org.chocosolver.graphsolver.variables.GraphEventType;
 import org.chocosolver.graphsolver.variables.UndirectedGraphVar;
+import org.chocosolver.graphsolver.variables.delta.GraphDeltaMonitor;
+import org.chocosolver.memory.IStateBitSet;
+import org.chocosolver.memory.IStateDouble;
+import org.chocosolver.memory.IStateIntVector;
+import org.chocosolver.memory.IStateObject;
 import org.chocosolver.solver.constraints.Propagator;
 import org.chocosolver.solver.constraints.PropagatorPriority;
 import org.chocosolver.solver.exception.ContradictionException;
 import org.chocosolver.solver.variables.IntVar;
 import org.chocosolver.solver.variables.Variable;
 import org.chocosolver.solver.variables.events.IntEventType;
+import org.chocosolver.solver.variables.events.PropagatorEventType;
 import org.chocosolver.util.ESat;
 import org.chocosolver.util.objects.graphs.UndirectedGraph;
+import org.chocosolver.util.procedure.PairProcedure;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,16 +73,24 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	protected UndirectedGraph g;
 	protected UndirectedGraphVar gV;
+	private GraphDeltaMonitor deltaMonitor;
+	private PairProcedure onArcRemoved;
+	private PairProcedure onArcEnforced;
+
 	protected IntVar costVar;
 	protected int n;
 	protected int[][] originalSmallCosts;
 	protected double[][] costs;
 	protected double[][] reducedCosts;
-	protected double[] penalities;
-	protected double totalPenalities;
-	protected UndirectedGraph mst;
-	protected double step;
-	protected AbstractTreeFinder HKfilter, HK;
+
+	//TODO je pourrais garder les variables dual au lieu de la matrice,
+	// ce serait plus léger mais plus chiant à recalculer
+	private IStateDouble[][] reducedCostsState;
+	private IStateBitSet[] cyclesState;
+	private IStateDouble[] penaltiesState;
+
+	//TODO TEMP?
+	private IStateObject cycleMapState;
 	protected boolean waitFirstSol;
 	protected int nbSprints;
 	private static int bigValue = 99999999;
@@ -355,7 +371,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		//mandFiltering();
 	}
 
-	private HashMap<Set<Integer>, Double> cycleMap = new HashMap<>();
+	private HashMap<BitSet, Double> cycleMap = new HashMap<>();
 
 	public Result testtest(
 			double[][] matrix,
@@ -525,7 +541,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			// For logging cycle changes
 			boundDecreased += boundChange;
 			if (minimum != 0){
-				cycleMap.merge(new HashSet<>(cycle), minimum, Double::sum);
+				updateMap(createBitsetFromList(cycle), minimum);
 			}
 
 			for (int col = 0; col < n; col++) {
@@ -555,12 +571,38 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		return new Result(lb, matrix, null);
 	}
 
+	private BitSet createBitsetFromList(List<Integer> list){
+		BitSet bs = new BitSet(n);
+		for (int i = 0; i < list.size(); i++) {
+			bs.set(list.get(i));
+		}
+		return bs;
+	}
+
+	private void updateMap(BitSet bs, Double value){
+		Double old = cycleMap.get(bs);
+		model.getEnvironment().save(() -> {
+			if (old == null) cycleMap.remove(bs);
+			else cycleMap.put(bs, old);
+		});
+		cycleMap.merge(bs, value, Double::sum);
+	}
+
+	private void removeMap(BitSet bs){
+		Double old = cycleMap.get(bs);
+		if (old == null) return;
+		model.getEnvironment().save(() -> {
+			cycleMap.put(bs, old);
+		});
+		cycleMap.remove(bs);
+	}
+
 	int boundDecreased = 0;
 
 	////////////////////////////////////////
 	int M;
 	protected PropFusionAsymUndirectedGraphVar(Variable[] vars, int[][] costMatrix) {
-		super(vars, PropagatorPriority.VERY_SLOW, false);
+		super(vars, PropagatorPriority.VERY_SLOW, true);
 		graphData = "";
 		n = costMatrix.length / 2;
 		originalSmallCosts = new int[n][n];
@@ -574,10 +616,22 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				}
 			}
 		}
+
+		cyclesState = new IStateBitSet[n];
+		penaltiesState = new IStateDouble[n];
+		reducedCostsState = new IStateDouble[n][n];
+		for (int i = 0; i < n; i++) {
+			cyclesState[i] = model.getEnvironment().makeBitSet(n);
+			penaltiesState[i] = model.getEnvironment().makeFloat();
+			for (int j = 0; j < n; j++) {
+				reducedCostsState[n][n] = model.getEnvironment().makeFloat();
+			}
+		}
+
 		costs = new double[n][n];
 		reducedCosts = new double[n][n];
-		totalPenalities = 0;
-		penalities = new double[n];
+		this.onArcRemoved = this::arcRemovedPropagation;
+		this.onArcEnforced = this::arcEnforcedPropagation;
 	}
 	boolean interleave;
 
@@ -586,7 +640,18 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		g = graph.getUB();
 		gV = graph;
 		costVar = cost;
+		this.deltaMonitor = gV.monitorDelta(this);
 		this.interleave = interleave;
+	}
+
+	private void arcRemovedPropagation(int from, int to){
+		// TODO
+		int a =3;
+	}
+
+	private void arcEnforcedPropagation(int from, int to){
+		// TODO check tous les K(S) dont il fait partie, et les annuler
+		int a =3;
 	}
 
 	//***********************************************************************************
@@ -608,7 +673,21 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			}
 		}
 	}
+
+	public void propagate(int idVar, int evtMask) throws ContradictionException {
+		deltaMonitor.freeze();
+		if(GraphEventType.isRemArc(evtMask)){
+			deltaMonitor.forEachArc(onArcRemoved, GraphEventType.REMOVE_ARC);
+		}
+
+		if(GraphEventType.isAddArc(evtMask)){
+			deltaMonitor.forEachArc(onArcEnforced, GraphEventType.ADD_ARC);
+		}
+		deltaMonitor.unfreeze();
+	}
+
 	public void propagate(int evtmask) throws ContradictionException {
+		deltaMonitor.unfreeze();
 		//graphData += gV.graphVizExport() + "\n---\n";
 		if (firstProp){
 			enforceInitial();
@@ -630,6 +709,18 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		if(firstLb == Double.NEGATIVE_INFINITY){
 			firstLb = costVar.getLB();
 		}
+
+		updateStateVariables();
+	}
+
+	private void updateStateVariables(){
+		cycleMapState. cycleMap;
+
+		/*int i = 0;
+		for (Map.Entry<BitSet, Double> entry : cycleMap.entrySet()) {
+			cyclesState[i].set(entry.getKey());
+			i++;
+		}*/
 	}
 
 	int iter = 0;
@@ -928,32 +1019,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		return ESat.TRUE;// it is just implied filtering
 	}
 
-	public double getMinArcVal() {
-		return -(((double) costVar.getUB()) + totalPenalities);
-	}
-
-
 	public boolean isMandatory(int i, int j) {
 		return gV.getMandNeighOf(i).contains(j);
-	}
-
-	public void waitFirstSolution(boolean b) {
-		waitFirstSol = b;
-	}
-
-	public boolean contains(int i, int j) {
-		return mst == null || mst.edgeExists(i, j);
-	}
-
-	public UndirectedGraph getSupport() {
-		return mst;
-	}
-
-	public double getReplacementCost(int from, int to) {
-		return HKfilter.getRepCost(from, to);
-	}
-
-	public double getMarginalCost(int from, int to) {
-		return HKfilter.getRepCost(from, to);
 	}
 }

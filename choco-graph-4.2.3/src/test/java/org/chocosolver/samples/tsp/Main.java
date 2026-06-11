@@ -87,19 +87,19 @@ public class Main {
 		//resultsFirstLB_vsHeldKarp();
 		//resultsFirstLB_vsSequencing();
 
-		resultsTimeAndNodes_vsHeldKarp();
+		//resultsTimeAndNodes_vsHeldKarp();
 		//resultsTimeAndNodes_vsSequencing();
 
 		//randomLoop();
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		/*String fileName = "test.atsp";
+		String fileName = "test.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
-		fusionAsymUndirected(jonker_matrix, presolve, true);*/
+		fusionAsymUndirected(jonker_matrix, presolve, true);
 		//fusionAsymUndirected(jonker_matrix, presolve, true);
 		//fusionAsym(data, presolve, true);
 		//benchimol(jonker_matrix, presolve);
