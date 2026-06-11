@@ -86,8 +86,8 @@ public class Main {
     public static void main(String[] args) throws IOException {
 		//resultsFirstLB_vsHeldKarp();
 		//resultsFirstLB_vsSequencing();
-
-		resultsTimeAndNodes_vsHeldKarp();
+		resultsSequencing();
+		//resultsTimeAndNodes_vsHeldKarp();
 		//resultsTimeAndNodes_vsSequencing();
 
 		//randomLoop();
@@ -151,6 +151,81 @@ public class Main {
 					.map(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 		}
 	}
+
+	private static int currentGraphSearch = 0;
+
+	private static void resultsSequencing() throws IOException {
+		String[] filenames = getATSPFilenames();
+		double[] maxCostTime = new double[filenames.length];
+		double[] maxCostNodeCount = new double[filenames.length];
+		double[] lexicoTime = new double[filenames.length];
+		double[] lexicoCount = new double[filenames.length];
+		double[] minDomainTime= new double[filenames.length];
+		double[] minDomainCount = new double[filenames.length];
+		double[] hkTime = new double[filenames.length];
+		double[] hkCount = new double[filenames.length];
+		double[] APTime = new double[filenames.length];
+		double[] APCount = new double[filenames.length];
+
+		for (int i = 0; i < filenames.length; i++){
+			int[][] data = getATSPInstance(filenames[i]);
+			n = data.length;
+			int[][] jonker_matrix = makeJonkerMatrix(data);
+			//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
+			int presolve = (int)getBestSol(filenames[i]); //9999999;
+
+			currentGraphSearch = GraphSearch.MAX_COST;
+			Solver resultsFusion = heldKarp(jonker_matrix, presolve); // fusionAsymUndirected(jonker_matrix, presolve, false);
+			maxCostTime[i] = resultsFusion.getTimeCount();
+			maxCostNodeCount[i] = resultsFusion.getNodeCount();
+
+			currentGraphSearch = GraphSearch.LEX;
+			Solver resultsLex = fusionAsymUndirected(jonker_matrix, presolve, false);
+			lexicoTime[i] = resultsLex.getTimeCount();
+			lexicoCount[i] = resultsLex.getNodeCount();
+
+			currentGraphSearch = GraphSearch.MIN_P_DEGREE;
+			Solver resultsMinDomain = fusionAsymUndirected(jonker_matrix, presolve, false);
+			minDomainTime[i] = resultsMinDomain.getTimeCount();
+			minDomainCount[i] = resultsMinDomain.getNodeCount();
+
+			currentGraphSearch = GraphSearch.REDUCED_COST_HK;
+			Solver resultsHK = fusionAsymUndirected(jonker_matrix, presolve, false);
+			hkTime[i] = resultsHK.getTimeCount();
+			hkCount[i] = resultsHK.getNodeCount();
+
+			currentGraphSearch = GraphSearch.REDUCED_COST_INTERLEAVE;
+			Solver resultsAP = fusionAsymUndirected(jonker_matrix, presolve, false);
+			APTime[i] = resultsAP.getTimeCount();
+			APCount[i] = resultsAP.getNodeCount();
+		}
+
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_NoInterleaveMedHeuristics.csv"))) {
+			bw.write("," + String.join(",", filenames)); bw.newLine();
+			bw.write("MaxCost - temps," + Arrays.stream(maxCostTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("MaxCost - noeuds," + Arrays.stream(maxCostNodeCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("Lexico - temps," + Arrays.stream(lexicoTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("Lexico - noeuds," + Arrays.stream(lexicoCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("MinDomain - temps," + Arrays.stream(minDomainTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("MinDomain - noeuds," + Arrays.stream(minDomainCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("HeldKarp - temps," + Arrays.stream(hkTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("HeldKarp - noeuds," + Arrays.stream(hkCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("AP - temps," + Arrays.stream(APTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("AP - noeuds," + Arrays.stream(APCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+		}
+
+	}
+
 
 	private static void resultsTimeAndNodes_vsHeldKarp() throws IOException {
 		String[] filenames = getATSPFilenames();
@@ -353,12 +428,12 @@ public class Main {
 	}
 
 	private static int[][] getATSPInstance(String name) throws IOException {
-		String REPO = "src/test/java/org/chocosolver/samples/atsp";
+		String REPO = "src/test/java/org/chocosolver/samples/med_atsp";
 		org.moeaframework.problem.tsplib.TSPInstance problem = new TSPInstance(new File(REPO + "/" + name));
 		return getDataFromProblem(problem);
 	}
 	private static String[] getATSPFilenames() throws IOException {
-		String REPO = "src/test/java/org/chocosolver/samples/atsp";
+		String REPO = "src/test/java/org/chocosolver/samples/med_atsp";
 		File dir = new File(REPO);
 		return dir.list();
 	}
@@ -503,7 +578,7 @@ public class Main {
 		// constraints (TSP basic model + lagrangian relaxation)
 		hk = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		model.tsp(graph, totalCost, costMatrix, 1, hk).post();
-		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
+		return search(costMatrix, true, GraphSearch.MAX_COST);
 	}
 
 	private static Solver fusionAsymUndirected(int[][] costMatrix, int initialUB, boolean interleave){
@@ -517,7 +592,7 @@ public class Main {
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)
 		model.tsp_general(graph, totalCost, costMatrix, props).post();
-		return search(costMatrix, true, GraphSearch.REDUCED_COST_INTERLEAVE);
+		return search(costMatrix, true, currentGraphSearch);
 	}
 
 	private static Solver heldKarpAPStart(int[][] costMatrix, int initialUB){
