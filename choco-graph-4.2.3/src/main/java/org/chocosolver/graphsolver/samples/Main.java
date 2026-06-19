@@ -522,7 +522,7 @@ public class Main {
 		hk = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		Propagator[] props = new Propagator[]{
 				interleaveProp,
-				hk
+				//hk
 		};
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)

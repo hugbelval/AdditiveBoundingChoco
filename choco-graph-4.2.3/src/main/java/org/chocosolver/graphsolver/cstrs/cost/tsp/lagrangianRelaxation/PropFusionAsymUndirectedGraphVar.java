@@ -618,6 +618,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		super(vars, PropagatorPriority.VERY_SLOW, true);
 		graphData = "";
 		n = costMatrix.length / 2;
+		nRemaining = n;
 		originalSmallCosts = new int[n][n];
 		M = costMatrix[n][0];
 		for (int i = 0; i < n; i++) {
@@ -841,12 +842,63 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	private void filterFloydWarshall(double lowerBound, int zeros[][]) throws ContradictionException {
 		//build base matrix
-		double[][] W = new double[2*n][2*n];
+		double[][] W = new double[2*nRemaining][2*nRemaining];
 		for (double[] row : W) Arrays.fill(row, bigValue);
+		int ki=0;
 		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)) {
+			int kj=0;
 			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
-				W[i+n][j] = getCostFlow(i+n, j, zeros);
-				W[i][j+n] = getCostFlow(i, j+n, zeros);
+				W[ki+n][kj] = getCostFlow(i+n, j, zeros);
+				W[ki][kj+n] = getCostFlow(i, j+n, zeros);
+				kj++;
+			}
+			ki++;
+		}
+
+		//TODO checker ici boucle par boucle
+		/*for (int k = 0; k < 2*n; k++) {
+			for (int i = 0; i < 2*n; i++) {
+				for (int j = 0; j < 2*n; j++) {
+					W[i][j] = Math.min(W[i][j], W[i][k] + W[k][j]);
+				}
+			}
+		}*/
+		for (int k = 0; k < 2*nRemaining; k++) {
+			for (int i = 0; i < 2*nRemaining; i++) {
+				for (int j = 0; j < 2*nRemaining; j++) {
+					W[i][j] = Math.min(W[i][j], W[i][k] + W[k][j]);
+				}
+			}
+		}
+
+
+
+		double[][] bigReducedCosts = new double[n][n];
+		ki=0;
+		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)) {
+			int kj=0;
+			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+				if(i == j){
+					bigReducedCosts[i][j] = bigValue;
+				}
+				else{
+					bigReducedCosts[i][j] = W[kj+n][ki] + reducedCosts[i][j];
+				}
+				kj++;
+			}
+			ki++;
+		}
+
+		basicFiltering(bigReducedCosts, lowerBound);
+	}
+
+
+	private void filterFloydWarshallOld(double lowerBound, int zeros[][]) throws ContradictionException {
+		//build base matrix
+		double[][] W = new double[2*n][2*n];
+		for (int i = 0; i <2*n; i++) {
+			for (int j = 0; j < 2*n; j++) {
+				W[i][j] = getCostFlow(i,j, zeros);
 			}
 		}
 
@@ -879,6 +931,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		}
 		basicFiltering(bigReducedCosts, lowerBound);
 	}
+
 
 
 	private double getCostFlow(int from, int to, int[][] zeros){
@@ -1017,7 +1070,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		lowerBound += result.lb;
 		reducedCosts = result.array;
 		if(countStars(result.zeros) == n){
-			//filterFloydWarshall(lowerBound, result.zeros);
+			//filterFloydWarshallOld(lowerBound, result.zeros);
 		}
 
 		logState();
