@@ -611,7 +611,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	public void propagate(int evtmask) throws ContradictionException {
 		//graphData += gV.graphVizExport() + "\n---\n";
 		if (firstProp){
-			enforceInitial();
+			//enforceInitial();
 			firstProp = false;
 		}
 
@@ -756,8 +756,8 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		Result result = null;
 		double[][] bestReducedCosts = null;
 		reducedCosts = Arrays.stream(costs).map(double[]::clone).toArray(double[][]::new);
-		int maxNonImprove = 10;
-		nbSprints = 5*n;
+		int maxNonImprove = 1;
+		nbSprints = n;
 		cycleMap = new HashMap<>();
 		int nonImprove = 0;
 		int i = 0;

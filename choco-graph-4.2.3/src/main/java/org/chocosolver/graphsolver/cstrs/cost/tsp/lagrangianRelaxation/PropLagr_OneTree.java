@@ -99,7 +99,25 @@ public class PropLagr_OneTree extends Propagator<Variable> implements GraphLagra
 	// HK Algorithm(s)
 	//***********************************************************************************
 
+
+
+	private void enforceInitial() throws ContradictionException {
+		for (int i = 0; i < n/2; i++) {
+			gV.enforceArc(i+n/2, i, this);
+			for (int j = 0; j < n/2; j++) {
+				gV.removeArc(i,j, this);
+				gV.removeArc(i+n/2,j+n/2, this);
+			}
+		}
+	}
+
+	boolean firstProp = true;
 	public void propagate(int evtmask) throws ContradictionException {
+
+		if(firstProp){
+			firstProp = false;
+			enforceInitial();
+		}
 		if (waitFirstSol && getModel().getSolver().getSolutionCount() == 0) {
 			return;//the UB does not allow to prune
 		}

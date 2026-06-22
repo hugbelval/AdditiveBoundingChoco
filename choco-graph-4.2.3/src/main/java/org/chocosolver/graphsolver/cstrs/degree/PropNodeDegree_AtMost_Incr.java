@@ -109,6 +109,9 @@ public class PropNodeDegree_AtMost_Incr extends Propagator<GraphVar> {
 	// PROPAGATIONS
 	//***********************************************************************************
 
+
+
+
 	@Override
 	public void propagate(int evtmask) throws ContradictionException {
 		ISet act = g.getPotentialNodes();

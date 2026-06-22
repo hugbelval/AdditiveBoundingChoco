@@ -156,8 +156,12 @@ public class Main {
 		String[] filenames = getATSPFilenames();
 		double[] fusionTime = new double[filenames.length];
 		double[] fusionNodeCount = new double[filenames.length];
+
 		double[] benchTime = new double[filenames.length];
 		double[] benchNodeCount = new double[filenames.length];
+
+		double[] sequenceTime = new double[filenames.length];
+		double[] sequenceNodeCount = new double[filenames.length];
 
 		for (int i = 0; i < filenames.length; i++){
 			int[][] data = getATSPInstance(filenames[i]);
@@ -169,17 +173,25 @@ public class Main {
 			benchTime[i] = resultsBench.getTimeCount();
 			Solver resultsFusion = fusionAsymUndirected(jonker_matrix, presolve, true);
 			fusionTime[i] = resultsFusion.getTimeCount();
+			Solver resultsSequence = fusionAsymUndirected(jonker_matrix, presolve, false);
+			sequenceTime[i] = resultsFusion.getTimeCount();
+			sequenceNodeCount[i] = resultsSequence.getNodeCount();
 			fusionNodeCount[i] = resultsFusion.getNodeCount();
 			benchNodeCount[i] = resultsBench.getNodeCount();
 		}
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_ReducedCostInterleaveLongHeuristic.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_WithEnforce_HK.csv"))) {
 			bw.write("," + String.join(",", filenames)); bw.newLine();
 			bw.write("Held-Karp - temps," + Arrays.stream(benchTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("Held-Karp+Sequencer - temps," + Arrays.stream(sequenceTime)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("Held-Karp+Entrelacer - temps," + Arrays.stream(fusionTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+
 			bw.write("Held-Karp - noeuds," + Arrays.stream(benchNodeCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("Held-Karp+Sequencer - noeuds," + Arrays.stream(sequenceNodeCount)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("Held-Karp+Entrelacer - noeuds," + Arrays.stream(fusionNodeCount)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
@@ -517,7 +529,7 @@ public class Main {
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)
 		model.tsp_general(graph, totalCost, costMatrix, props).post();
-		return search(costMatrix, true, GraphSearch.REDUCED_COST_INTERLEAVE);
+		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
 	}
 
 	private static Solver heldKarpAPStart(int[][] costMatrix, int initialUB){
