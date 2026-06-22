@@ -89,7 +89,7 @@ public class Main {
 		//resultsFirstLB_vsHeldKarp();
 		//resultsFirstLB_vsSequencing();
 
-		//resultsTimeAndNodes_vsHeldKarp();
+		resultsTimeAndNodes_vsHeldKarp();
 		//resultsTimeAndNodes_vsSequencing();
 
 		//randomLoop();
@@ -182,7 +182,7 @@ public class Main {
 			sequencingNodeCount[i] = resultsSequencing.getNodeCount();
 		}
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_StarZeros.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_Fixed_MaxCost.csv"))) {
 			bw.write("," + String.join(",", filenames)); bw.newLine();
 			bw.write("Held-Karp - temps," + Arrays.stream(benchTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
@@ -442,7 +442,6 @@ public class Main {
 		else{
 			heuristic = new GraphSearch(graph, costMatrix);
 		}
-		solver.showSolutions();
 		solver.setSearch(heuristic.configure(graphSearch).useLastConflict());
 		solver.limitTime(LIMIT+"s");
 
@@ -533,7 +532,7 @@ public class Main {
 		hk = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		Propagator[] props = new Propagator[]{
 				interleaveProp,
-				//hk
+				hk
 		};
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)

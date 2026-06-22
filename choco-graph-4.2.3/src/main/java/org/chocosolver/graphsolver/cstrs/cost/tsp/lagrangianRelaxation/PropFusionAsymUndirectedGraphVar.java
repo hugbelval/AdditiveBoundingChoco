@@ -701,20 +701,25 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 		if (from >= n && to < n) {
 			from = from % n;
+			reducedCosts[from][to] = bigValue;
 		}
 		else if (from < n && to >= n) {
 			int temp = to;
 			to = from;
 			from = temp % n;
+			reducedCosts[from][to] = bigValue;
 		}
 		else{
-			throw new RuntimeException();
+			//C'est ok, c'est un arc dans les zones infini
+			//throw new RuntimeException();
 		}
 
-		reducedCosts[from][to] = bigValue;
 	}
 
 	private void arcEnforcedPropagation(int from, int to) throws ContradictionException {
+		if(from == 0 && to == 6){
+			int a =3;
+		}
 		if (from >= n && to < n) {
 			from = from % n;
 		}
@@ -762,14 +767,19 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		}
 		while(!bsToRemove.isEmpty()){
 			BitSet bs = bsToRemove.get(0);
-			cycleMap.remove(bs);
+			removeMap(bs);
 			bsToRemove.remove(bs);
 		}
 
 		//fusionRelaxationAsym();
 	}
 
+	int setRedCount = 0;
 	private void setReducedCostsFromState(){
+		setRedCount++;
+		if(setRedCount == 5){
+			int a =3;
+		}
 		remainingRows = new BitSet(n);
 		remainingCols = new BitSet(n);
 		remainingRows.flip(0,n);
@@ -783,7 +793,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		}
 		nRemaining = remainingRows.cardinality();
 		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)) {
-			for (int j = remainingRows.nextSetBit(0); j >= 0; j = remainingRows.nextSetBit(j + 1)) {
+			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
 				reducedCosts[i][j] = reducedCostsState[i][j].get();
 			}
 		}
@@ -791,8 +801,6 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	}
 
 	public void propagate(int idVar, int evtMask) throws ContradictionException {
-		// ... your logic ...
-
 		deltaMonitor.freeze();
 
 		setReducedCostsFromState();
@@ -806,6 +814,8 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		}
 		deltaMonitor.unfreeze();
 		fusionRelaxationAsym();
+		int a =3;
+		//propagate(evtMask);
 	}
 
 	public void propagate(int evtmask) throws ContradictionException {
@@ -1037,6 +1047,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 		while (i < nbSprints && nonImprove < maxNonImprove){
 			//updateRemainingArcs();
+
 			if(interleave) {
 				result = hungarianIteration(reducedCosts);
 				lowerBound += result.lb;
@@ -1051,34 +1062,32 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				}
 			}
 			basicFiltering(reducedCosts, lowerBound);
-
 			if (lowerBound > maxLb) {
 				maxLb = lowerBound;
 				if (result.zeros != null){
-					bestStarZeros = result.zeros;
+					//bestStarZeros = result.zeros;
 				}
 				nonImprove = 0;
 			}
 			else {
 				nonImprove++;
 			}
+
+//TODO remettre Edmond, enlevé temporairement
+			/*
 			if(interleave){
 				result = edmondsIteration(reducedCosts, false,result.zeros);
 				lowerBound += result.lb;
 			} else {
 				result = null;
 				while(result == null || result.lb > 0) {
-					result = edmondsIteration(reducedCosts, true/*true*/, null/*result.zeros*/);
+					result = edmondsIteration(reducedCosts, true, null);
 					lowerBound += result.lb;
-					/*if(getData){
-						dataBound.add((int) lowerBound);
-						dataTime.add((int) (System.currentTimeMillis() - startTime));
-						dataIsHungarian.add(false);
-					}*/
+
 
 					basicFiltering(reducedCosts, lowerBound);
 				}
-			}
+			}*/
 
 			if (lowerBound - Math.floor(lowerBound) < 0.001) {
 				lowerBound = Math.floor(lowerBound);
