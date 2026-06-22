@@ -39,6 +39,8 @@ import org.chocosolver.graphsolver.variables.UndirectedGraphVar;
 import org.chocosolver.solver.Model;
 import org.chocosolver.solver.Solver;
 import org.chocosolver.solver.constraints.Propagator;
+import org.chocosolver.solver.exception.ContradictionException;
+import org.chocosolver.solver.search.loop.monitors.IMonitorContradiction;
 import org.chocosolver.solver.variables.IntVar;
 import org.chocosolver.util.objects.graphs.DirectedGraph;
 import org.chocosolver.util.objects.graphs.UndirectedGraph;
@@ -87,19 +89,21 @@ public class Main {
 		//resultsFirstLB_vsHeldKarp();
 		//resultsFirstLB_vsSequencing();
 
-		resultsTimeAndNodes_vsHeldKarp();
+		//resultsTimeAndNodes_vsHeldKarp();
 		//resultsTimeAndNodes_vsSequencing();
 
 		//randomLoop();
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		/*String fileName = "test.atsp";
+		String fileName = "test2.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
-		fusionAsymUndirected(jonker_matrix, presolve, true);*/
+		fusionAsymUndirected(jonker_matrix, presolve, true);
+		//Solver solver = heldKarp(jonker_matrix, presolve);
+		int a =3;
 		//fusionAsymUndirected(jonker_matrix, presolve, true);
 		//fusionAsym(data, presolve, true);
 		//benchimol(jonker_matrix, presolve);
@@ -438,10 +442,15 @@ public class Main {
 		else{
 			heuristic = new GraphSearch(graph, costMatrix);
 		}
+		solver.showSolutions();
 		solver.setSearch(heuristic.configure(graphSearch).useLastConflict());
 		solver.limitTime(LIMIT+"s");
 
 		model.setObjective(Model.MINIMIZE,totalCost);
+
+// Print every decision and backtrack
+
+
 		while (solver.solve()){
 			System.out.println("After " + solver.getNodeCount() + "nodes,");
 			if (benchMatrix){
@@ -460,6 +469,8 @@ public class Main {
 				System.out.println("no solution found");
 			}
 		}
+
+
 		return solver;
 		//return solver.getBestSolutionValue().intValue() + M*n;
 	}
