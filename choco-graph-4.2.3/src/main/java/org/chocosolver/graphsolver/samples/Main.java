@@ -89,14 +89,14 @@ public class Main {
 		//resultsFirstLB_vsHeldKarp();
 		//resultsFirstLB_vsSequencing();
 
-		resultsTimeAndNodes_vsHeldKarp();
+		//resultsTimeAndNodes_vsHeldKarp();
 		//resultsTimeAndNodes_vsSequencing();
 
 		//randomLoop();
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		String fileName = "test2.atsp";
+		String fileName = "ft70.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
@@ -300,26 +300,16 @@ public class Main {
 	}
 
 	private static void randomLoop(){
-		n = 5;
+		n = 8;
 		while (true){
 			int[][] data = randomMatrix();
 			int[][] jonker_matrix = makeJonkerMatrix(data);
 			int presolve = 500000;
-			//Solver result = fusionAsym(data, presolve, false);
-			//Solver result2 = fusionAsymUndirected(jonker_matrix, (Integer) result.getBestSolutionValue(), true);
-			//Solver result3 = benchimol(jonker_matrix, (Integer) result.getBestSolutionValue());
-
-			/*if(!(result2.getBestSolutionValue().intValue() == result3.getBestSolutionValue().intValue() + n*M && result2.getBestSolutionValue().intValue() == result.getBestSolutionValue().intValue())){
+			Solver result1 = fusionAsymUndirected(jonker_matrix, 999999, true);
+			Solver result2 = heldKarp(jonker_matrix, 999999);
+			if(result1.getBestSolutionValue().intValue() != result2.getBestSolutionValue().intValue()){
 				int a = 3;
 			}
-
-			if(result2.getNodeCount() < result3.getNodeCount()){
-				int a = 3;
-			}
-
-			if(result2.getNodeCount() > result3.getNodeCount()){
-				int a = 3;
-			}*/
 		}
 	}
 
