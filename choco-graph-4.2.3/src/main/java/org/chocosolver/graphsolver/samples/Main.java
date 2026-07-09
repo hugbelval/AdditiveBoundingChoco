@@ -96,13 +96,13 @@ public class Main {
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		String fileName = "ft70.atsp";
+		String fileName = "test4.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
 		fusionAsymUndirected(jonker_matrix, presolve, true);
-		//Solver solver = heldKarp(jonker_matrix, presolve);
+		Solver solver = heldKarp(jonker_matrix, presolve);
 		int a =3;
 		//fusionAsymUndirected(jonker_matrix, presolve, true);
 		//fusionAsym(data, presolve, true);
@@ -300,7 +300,7 @@ public class Main {
 	}
 
 	private static void randomLoop(){
-		n = 8;
+		n = 4;
 		while (true){
 			int[][] data = randomMatrix();
 			int[][] jonker_matrix = makeJonkerMatrix(data);
