@@ -96,13 +96,13 @@ public class Main {
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		String fileName = "test4.atsp";
+		String fileName = "ftv70.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
 		fusionAsymUndirected(jonker_matrix, presolve, true);
-		Solver solver = heldKarp(jonker_matrix, presolve);
+		//Solver solver = heldKarp(jonker_matrix, presolve);
 		int a =3;
 		//fusionAsymUndirected(jonker_matrix, presolve, true);
 		//fusionAsym(data, presolve, true);
@@ -182,7 +182,7 @@ public class Main {
 			sequencingNodeCount[i] = resultsSequencing.getNodeCount();
 		}
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_Fixed_MaxCost.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_Fixed_RedCostOnlyMyMethod.csv"))) {
 			bw.write("," + String.join(",", filenames)); bw.newLine();
 			bw.write("Held-Karp - temps," + Arrays.stream(benchTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
@@ -513,7 +513,7 @@ public class Main {
 		// constraints (TSP basic model + lagrangian relaxation)
 		hk = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		model.tsp(graph, totalCost, costMatrix, 1, hk).post();
-		return search(costMatrix, true, GraphSearch.MAX_COST);
+		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
 	}
 
 	private static Solver fusionAsymUndirected(int[][] costMatrix, int initialUB, boolean interleave){
@@ -527,7 +527,7 @@ public class Main {
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)
 		model.tsp_general(graph, totalCost, costMatrix, props).post();
-		return search(costMatrix, true, GraphSearch.MAX_COST);
+		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
 	}
 
 	private static Solver heldKarpAPStart(int[][] costMatrix, int initialUB){
