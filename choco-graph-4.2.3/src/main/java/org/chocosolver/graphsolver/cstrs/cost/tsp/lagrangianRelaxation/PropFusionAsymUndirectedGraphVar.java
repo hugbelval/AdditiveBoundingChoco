@@ -745,12 +745,12 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		}
 		else{
 			//TODO pas normal d'arriver ici
+			System.out.println("Error42");
 			throw new RuntimeException();
 		}
 		if(from == to) return;
 		if (arcsEnforcedFromState.quickGet(from) == to) return;
 		if (!remainingRows.get(from) || !remainingCols.get(to)) return;
-
 
 		for (int i = 0; i < n; i++) {
 			if(arcsEnforcedFromState.quickGet(i) == to){
@@ -1211,7 +1211,6 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		}
 
 		logState();
-		System.out.println("nbIter: " + i);
 
 		//filterBigReducedCosts(lowerBound, reducedCosts);
 		removed = 0;

@@ -92,16 +92,17 @@ public class Main {
 		//resultsTimeAndNodes_vsHeldKarp();
 		//resultsTimeAndNodes_vsSequencing();
 
-		//randomLoop();
+		randomLoop();
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		String fileName = "ftv70.atsp";
+		String fileName = "test4.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
 		fusionAsymUndirected(jonker_matrix, presolve, true);
+		heldKarp(jonker_matrix, presolve);
 		//Solver solver = heldKarp(jonker_matrix, presolve);
 		int a =3;
 		//fusionAsymUndirected(jonker_matrix, presolve, true);
@@ -175,14 +176,14 @@ public class Main {
 			Solver resultsFusion = fusionAsymUndirected(jonker_matrix, presolve, true);
 			fusionTime[i] = resultsFusion.getTimeCount();
 			Solver resultsSequencing = fusionAsymUndirected(jonker_matrix, presolve, false);
-			sequencingTime[i] = resultsFusion.getTimeCount();
+			sequencingTime[i] = resultsSequencing.getTimeCount();
 
 			fusionNodeCount[i] = resultsFusion.getNodeCount();
 			benchNodeCount[i] = resultsBench.getNodeCount();
 			sequencingNodeCount[i] = resultsSequencing.getNodeCount();
 		}
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_Fixed_RedCostOnlyMyMethod.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_Fixed_RedCostMethod.csv"))) {
 			bw.write("," + String.join(",", filenames)); bw.newLine();
 			bw.write("Held-Karp - temps," + Arrays.stream(benchTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
@@ -300,7 +301,7 @@ public class Main {
 	}
 
 	private static void randomLoop(){
-		n = 4;
+		n = 8;
 		while (true){
 			int[][] data = randomMatrix();
 			int[][] jonker_matrix = makeJonkerMatrix(data);
@@ -331,7 +332,7 @@ public class Main {
 		return bench;
 	}
 
-	private static int seed = 6829;
+	private static int seed = 6831;
 	public static int[][] randomMatrix() {
 		Random rand = new Random(seed);
 		seed++;
@@ -522,7 +523,7 @@ public class Main {
 		hk = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		Propagator[] props = new Propagator[]{
 				interleaveProp,
-				hk
+				//hk
 		};
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)
