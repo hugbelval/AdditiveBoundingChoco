@@ -55,6 +55,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -96,7 +97,7 @@ public class Main {
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		String fileName = "test4.atsp";
+		/*String fileName = "br17.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
@@ -104,7 +105,7 @@ public class Main {
 		fusionAsymUndirected(jonker_matrix, presolve, true);
 		heldKarp(jonker_matrix, presolve);
 		//Solver solver = heldKarp(jonker_matrix, presolve);
-		int a =3;
+		int a =3;*/
 		//fusionAsymUndirected(jonker_matrix, presolve, true);
 		//fusionAsym(data, presolve, true);
 		//benchimol(jonker_matrix, presolve);
@@ -302,16 +303,16 @@ public class Main {
 
 	private static void randomLoop(){
 		n = 8;
-		while (true){
+	//	while (true){
 			int[][] data = randomMatrix();
 			int[][] jonker_matrix = makeJonkerMatrix(data);
 			int presolve = 500000;
 			Solver result1 = fusionAsymUndirected(jonker_matrix, 999999, true);
-			Solver result2 = heldKarp(jonker_matrix, 999999);
-			if(result1.getBestSolutionValue().intValue() != result2.getBestSolutionValue().intValue()){
+			//Solver result2 = heldKarp(jonker_matrix, 999999);
+			/*if(result1.getBestSolutionValue().intValue() != result2.getBestSolutionValue().intValue()){
 				int a = 3;
-			}
-		}
+			}*/
+		//}
 	}
 
 	private static int[][] makeJonkerMatrix(int[][] data){
@@ -444,7 +445,19 @@ public class Main {
 		while (solver.solve()){
 			System.out.println("After " + solver.getNodeCount() + "nodes,");
 			if (benchMatrix){
-				System.out.println("solution found : " + (solver.getBestSolutionValue().intValue() + M*n));//"[" + (totalCost.getLB() + M*n) +", " + (totalCost.getUB() + M*n) + "]");
+				int cost = 0;
+				UndirectedGraphVar gv = (UndirectedGraphVar) model.retrieveGraphVars()[0];
+				for (int i = 0; i < n; i++) {
+					Iterator<Integer> it = gv.getMandNeighOf(i).iterator();
+					while(it.hasNext()){
+						int j = it.next();
+						if(costMatrix[i][j]>0){
+							cost += costMatrix[i][j];
+						}
+					}
+				}
+				//System.out.println("solution found : " + );//"[" + (totalCost.getLB() + M*n) +", " + (totalCost.getUB() + M*n) + "]");
+				System.out.println("[CHECK] reported=" + (solver.getBestSolutionValue().intValue() + M*n) + " real=" + cost);
 			}
 			else{
 				System.out.println("solution found : " + solver.getBestSolutionValue());
