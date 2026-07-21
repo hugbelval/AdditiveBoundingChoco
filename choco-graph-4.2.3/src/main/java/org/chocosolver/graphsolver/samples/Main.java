@@ -97,15 +97,15 @@ public class Main {
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		/*String fileName = "br17.atsp";
+		String fileName = "br17.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
-		fusionAsymUndirected(jonker_matrix, presolve, true);
-		heldKarp(jonker_matrix, presolve);
+		//fusionAsymUndirected(jonker_matrix, presolve, true);
+		//heldKarp(jonker_matrix, presolve);
 		//Solver solver = heldKarp(jonker_matrix, presolve);
-		int a =3;*/
+		int a =3;
 		//fusionAsymUndirected(jonker_matrix, presolve, true);
 		//fusionAsym(data, presolve, true);
 		//benchimol(jonker_matrix, presolve);
@@ -303,16 +303,18 @@ public class Main {
 
 	private static void randomLoop(){
 		n = 8;
-	//	while (true){
+	while (true){
 			int[][] data = randomMatrix();
 			int[][] jonker_matrix = makeJonkerMatrix(data);
 			int presolve = 500000;
 			Solver result1 = fusionAsymUndirected(jonker_matrix, 999999, true);
-			//Solver result2 = heldKarp(jonker_matrix, 999999);
-			/*if(result1.getBestSolutionValue().intValue() != result2.getBestSolutionValue().intValue()){
+			//System.out.println("result " + graph.toString());
+			/*Solver result2 = heldKarp(jonker_matrix, 999999);
+		System.out.println("result " + graph.toString());
+			if(result1.getBestSolutionValue().intValue() != result2.getBestSolutionValue().intValue()){
 				int a = 3;
 			}*/
-		//}
+		}
 	}
 
 	private static int[][] makeJonkerMatrix(int[][] data){
@@ -333,7 +335,7 @@ public class Main {
 		return bench;
 	}
 
-	private static int seed = 6831;
+	private static int seed = 6949;
 	public static int[][] randomMatrix() {
 		Random rand = new Random(seed);
 		seed++;
@@ -441,9 +443,9 @@ public class Main {
 
 // Print every decision and backtrack
 
-
 		while (solver.solve()){
 			System.out.println("After " + solver.getNodeCount() + "nodes,");
+			System.out.println("result " + graph.toString());
 			if (benchMatrix){
 				int cost = 0;
 				UndirectedGraphVar gv = (UndirectedGraphVar) model.retrieveGraphVars()[0];
@@ -457,7 +459,11 @@ public class Main {
 					}
 				}
 				//System.out.println("solution found : " + );//"[" + (totalCost.getLB() + M*n) +", " + (totalCost.getUB() + M*n) + "]");
-				System.out.println("[CHECK] reported=" + (solver.getBestSolutionValue().intValue() + M*n) + " real=" + cost);
+				int reported = (solver.getBestSolutionValue().intValue() + M*n);
+				if(reported != cost){
+					int a =3;
+				}
+				System.out.println("Solution [CHECK] reported=" + reported + " real=" + cost);
 			}
 			else{
 				System.out.println("solution found : " + solver.getBestSolutionValue());
