@@ -93,16 +93,16 @@ public class Main {
 		//resultsTimeAndNodes_vsHeldKarp();
 		//resultsTimeAndNodes_vsSequencing();
 
-		randomLoop();
+		//randomLoop();
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		String fileName = "br17.atsp";
+		String fileName = "rbg358.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
-		//fusionAsymUndirected(jonker_matrix, presolve, true);
+		fusionAsymUndirected(jonker_matrix, presolve, true);
 		//heldKarp(jonker_matrix, presolve);
 		//Solver solver = heldKarp(jonker_matrix, presolve);
 		int a =3;
@@ -335,7 +335,7 @@ public class Main {
 		return bench;
 	}
 
-	private static int seed = 6949;
+	private static int seed = 7056;
 	public static int[][] randomMatrix() {
 		Random rand = new Random(seed);
 		seed++;
@@ -360,13 +360,13 @@ public class Main {
 	}
 
 	private static int[][] getATSPInstance(String name) throws IOException {
-		String REPO = "atsp/";
+		String REPO = "hard_atsp/";
 		org.moeaframework.problem.tsplib.TSPInstance problem = new TSPInstance(new File(REPO + "/" + name));
 		return getDataFromProblem(problem);
 	}
 
 	private static String[] getATSPFilenames() throws IOException {
-		String REPO = "atsp/";
+		String REPO = "hard_atsp/";
 		File dir = new File(REPO);
 		return dir.list();
 	}
@@ -445,7 +445,7 @@ public class Main {
 
 		while (solver.solve()){
 			System.out.println("After " + solver.getNodeCount() + "nodes,");
-			System.out.println("result " + graph.toString());
+			//System.out.println("result " + graph.toString());
 			if (benchMatrix){
 				int cost = 0;
 				UndirectedGraphVar gv = (UndirectedGraphVar) model.retrieveGraphVars()[0];
