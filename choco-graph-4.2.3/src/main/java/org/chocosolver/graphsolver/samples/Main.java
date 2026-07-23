@@ -97,7 +97,7 @@ public class Main {
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		String fileName = "rbg358.atsp";
+		String fileName = "rect100_3.atsp";
 		int[][] data = getATSPInstance(fileName);
 		n = data.length;
 		int[][] jonker_matrix = makeJonkerMatrix(data);
@@ -360,13 +360,13 @@ public class Main {
 	}
 
 	private static int[][] getATSPInstance(String name) throws IOException {
-		String REPO = "hard_atsp/";
+		String REPO = "atsp/";
 		org.moeaframework.problem.tsplib.TSPInstance problem = new TSPInstance(new File(REPO + "/" + name));
 		return getDataFromProblem(problem);
 	}
 
 	private static String[] getATSPFilenames() throws IOException {
-		String REPO = "hard_atsp/";
+		String REPO = "atsp/";
 		File dir = new File(REPO);
 		return dir.list();
 	}
@@ -463,14 +463,15 @@ public class Main {
 				if(reported != cost){
 					int a =3;
 				}
-				System.out.println("Solution [CHECK] reported=" + reported + " real=" + cost);
+				//System.out.println("Solution [CHECK] reported=" + reported + " real=" + cost);
+				System.out.println("Solution real=" + cost);
 			}
 			else{
 				System.out.println("solution found : " + solver.getBestSolutionValue());
 			}
 		}
 		if(solver.getTimeCount()<LIMIT){
-			System.out.println("Optimality proved with exact CP approach");
+			System.out.println("Optimality proved with exact CP approach in " + solver.getTimeCount() + "s and " + solver.getNodeCount() + " nodes");
 		}else{
 			if(solver.getSolutionCount()>0) {
 				System.out.println("Best solution found : " + solver.getBestSolutionValue() + " (but no optimality proof");
@@ -542,7 +543,7 @@ public class Main {
 		hk = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		Propagator[] props = new Propagator[]{
 				interleaveProp,
-				//hk
+				hk
 		};
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)

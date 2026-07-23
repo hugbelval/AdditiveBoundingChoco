@@ -464,42 +464,23 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		//TODO peut-être refactor ici pour ne pas utiliser les masques, il doit y avoir plus efficace en java
 		// Utiliser tuples pour cycleEdgesMask
 		for(List<Integer> cycle : cycles){
-			int k = 4;
-			if (cycle.size() > n/k && cycle.size() < n - n/k){
-				continue;
-			}
-			boolean[][] cycleEdgesMask =
-					new boolean[edges.length][edges[0].length];
-
-			for (int col : cycle)
-				for (int row = 0; row < edges.length; row++)
-					cycleEdgesMask[row][col] = true;
-
-			for (int i = 0; i < cycle.size(); i++) {
-				int from = cycle.get(i);
-				int to = cycle.get((i+1) % cycle.size());
-				cycleEdgesMask[from][to] = false;
-			}
-
-			List<Double> minimumCandidates = new ArrayList<>();
-
 			/*for (int i = 0; i < edges.length; i++)
 				for (int j = 0; j < edges[0].length; j++)
 					if (cycleEdgesMask[i][j])
 						minimumCandidates.add(matrix[i][j]);*/
-
+			BitSet cycleBs = createBitsetFromList(cycle);
+			double minimum = bigValue;
 			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
+				if(!cycleBs.get(i)){
+					continue;
+				}
 				for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
-					if (!cycle.contains(i) && cycle.contains(j)){
-						minimumCandidates.add(matrix[i][j]);
+					if (cycleBs.get(j)){
+						minimum = Math.min(minimum, matrix[i][j]);
 					}
 				}
 			}
 
-			if(minimumCandidates.isEmpty()){
-				this.fails();
-			}
-			double minimum = Collections.min(minimumCandidates);
 			if (minimum > bigValue*0.9){
 				//Implique que la meilleure alternative est un infini, donc on est obligé de rester dans le cycle. Contradiction
 				this.fails();
@@ -548,12 +529,11 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				matrix[from][to] += minimum;
 			}*/
 			int updated = 0;
-			BitSet cycleBs = createBitsetFromList(cycle);
 			BitSet notCycleBs = createBitsetFromList(cycle);
 			notCycleBs.flip(0, n);
 			for (int i = notCycleBs.nextSetBit(0); i >= 0; i = notCycleBs.nextSetBit(i + 1)){
 				if(remainingRows.get(i)){
-					for (int j = cycleBs.nextSetBit(0); j >= 0; j = cycleBs.nextSetBit(j + 1)){
+					for(int j : cycle){
 						if (remainingCols.get(j) && i != j) {
 							updated++;
 							matrix[i][j] -= minimum;
@@ -772,70 +752,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		reducedCosts[from][to] = bigValue;
 	}
 
-	private void arcEnforcedPropagationDUMB(int from, int to) throws ContradictionException {
-		if (from >= n && to < n) {
-			from = from % n;
-		}
-		else if (from < n && to >= n) {
-			int temp = to;
-			to = from;
-			from = temp % n;
-		}
-		else{
-			//TODO pas normal d'arriver ici
-			System.out.println("Error42");
-			throw new RuntimeException();
-		}
-
-		if(to == 4 || to == 5){
-			int a =3;
-		}
-		if(from == to) return;
-		if (arcsEnforcedFromState.quickGet(from) == to) return;
-		if (!remainingRows.get(from) || !remainingCols.get(to)) return;
-
-		for (int i = 0; i < n; i++) {
-			if(arcsEnforcedFromState.quickGet(i) == to){
-				int a =3;
-			}
-		}
-
-		List<BitSet> bsToRemove = new ArrayList<>();
-		for (BitSet bs : cycleMap.keySet()) {
-			//Si fait partie du K(S)
-			if(bs.get(to) && !bs.get(from)){
-				double penalty = cycleMap.get(bs);
-				lowerBound += penalty;
-				bsToRemove.add(bs);
-			}
-			/*if(!(bs.get(to) && !bs.get(from))){
-				double penalty = cycleMap.get(bs);
-				lowerBound -= penalty;
-			}*/
-		}
-		while(!bsToRemove.isEmpty()){
-			BitSet bs = bsToRemove.get(0);
-			removeMap(bs);
-			bsToRemove.remove(bs);
-		}
-
-		arcsEnforcedFromState.set(from, to);
-		if(remainingRows.get(from) && remainingCols.get(to)){
-			remainingRows.clear(from);
-			remainingCols.clear(to);
-			nRemaining--;
-			if(reducedCosts[from][to] > bigValue*0.9){
-				int a =3;
-			}
-			lowerBound += reducedCosts[from][to];
-		}
-		else{
-			int a =3;
-		}
-
-		//fusionRelaxationAsym();
-	}
-int wi = 7;
+	int wi = 7;
 	private void arcEnforcedPropagation(int from, int to) throws ContradictionException {
 		if(model.getEnvironment().getWorldIndex() == wi){
 			wi++;
@@ -880,7 +797,7 @@ int wi = 7;
 					//Compensate for removed row/cols that would be augmented.
 					if(arcsEnforcedFromState.quickGet(i) >= 0 && bs.get(arcsEnforcedFromState.quickGet(i))){ //||
 						//	g.getNeighOf(i+n).size() == 2 && i != from && (bs.get(g.getNeighOf(i+n).min()) || bs.get(g.getNeighOf(i+n).max()))){
-						//lowerBound+=penalty;
+						lowerBound+=penalty;
 					}
 					/*if(g.getNeighOf(i+n).size() == 2 && i != from && (bs.get(g.getNeighOf(i+n).min()) || bs.get(g.getNeighOf(i+n).max()))){
 						lowerBound+=penalty;
@@ -992,7 +909,6 @@ int wi = 7;
 	//	deltaMonitor.unfreeze();
 
 		setReducedCostsFromState();
-		System.out.println(costVar.getUB());
 		remainingRows = new BitSet(n);
 		remainingCols = new BitSet(n);
 		remainingRows.flip(0,n);
@@ -1286,8 +1202,6 @@ int wi = 7;
 				result = hungarianIteration(reducedCosts);
 				lowerBound += result.lb;
 				reducedCosts = result.array;
-				System.out.println(removed);
-
 			}
 			else{
 				while(result == null || result.lb > 0) {
@@ -1350,8 +1264,7 @@ int wi = 7;
 		if(countStars(result.zeros) == nRemaining){
 			filterFloydWarshallNew(lowerBound, result.zeros);
 			costVar.updateLowerBound(getRealLowerBound(result.zeros)+M*n, this);
-			System.out.println(removed);
-
+			//System.out.println(removed);
 		}
 
 		logState();
@@ -1403,7 +1316,7 @@ int wi = 7;
 				//System.out.println("[FUSION][UPDATEREMAINING-ENFORCE] " + (i+n) + " -> " + neigh);
 
 				gV.enforceArc(i+n, neigh, this);
-				arcRemovedPropagation(i+n, neigh);
+				arcEnforcedPropagation(i+n, neigh);
 				if(reducedCosts[i][neigh] != 0){
 					int a =3;
 				}
