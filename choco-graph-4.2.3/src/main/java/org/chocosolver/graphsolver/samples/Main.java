@@ -28,6 +28,7 @@
 package org.chocosolver.graphsolver.samples;
 
 import org.chocosolver.graphsolver.GraphModel;
+import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.HungarianAlgorithm;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionASym;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionAsymUndirectedGraphVar;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropLagr_OneTree;
@@ -90,19 +91,29 @@ public class Main {
 		//resultsFirstLB_vsHeldKarp();
 		//resultsFirstLB_vsSequencing();
 
+		//resultsMyMethod();
 		//resultsTimeAndNodes_vsHeldKarp();
-		//resultsTimeAndNodes_vsSequencing();
 
 		//randomLoop();
 		//resultsFirstLB();
 		//resultsTimeAndNodes();
 		//getData();
-		String fileName = "rect100_3.atsp";
+		String fileName = "test5.atsp";
 		int[][] data = getATSPInstance(fileName);
+
+		double[][] doubleArr = new double[data.length][];
+		for (int i = 0; i < data.length; i++) {
+			doubleArr[i] = new double[data[i].length];
+			for (int j = 0; j < data[i].length; j++) {
+				doubleArr[i][j] = data[i][j];
+			}
+		}
+		HungarianAlgorithm hung = new HungarianAlgorithm(doubleArr);
+		hung.execute();
 		n = data.length;
-		int[][] jonker_matrix = makeJonkerMatrix(data);
+		/*int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
-		fusionAsymUndirected(jonker_matrix, presolve, true);
+		fusionAsymUndirected(jonker_matrix, presolve, true);*/
 		//heldKarp(jonker_matrix, presolve);
 		//Solver solver = heldKarp(jonker_matrix, presolve);
 		int a =3;
@@ -137,7 +148,7 @@ public class Main {
 
 		//fusionAsym(data, presolve, false);
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/dataFirstIterNoInterleave.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/dataFirstIterNoInterleaveSLOW.csv"))) {
 			bw.write("time," + Arrays.stream(fusion.dataTime.toArray())
 					.map(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("bound," + Arrays.stream(fusion.dataBound.toArray())
@@ -168,6 +179,7 @@ public class Main {
 		double[] sequencingNodeCount = new double[filenames.length];
 		for (int i = 0; i < filenames.length; i++){
 			int[][] data = getATSPInstance(filenames[i]);
+			System.out.println("-----------------" + filenames[i]);
 			n = data.length;
 			int[][] jonker_matrix = makeJonkerMatrix(data);
 			//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
@@ -184,7 +196,7 @@ public class Main {
 			sequencingNodeCount[i] = resultsSequencing.getNodeCount();
 		}
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_Fixed_RedCostMethod.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_Fixed_RedCostMethod_LessFW.csv"))) {
 			bw.write("," + String.join(",", filenames)); bw.newLine();
 			bw.write("Held-Karp - temps," + Arrays.stream(benchTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
@@ -198,6 +210,24 @@ public class Main {
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("Held-Karp+Entrelacer - noeuds," + Arrays.stream(fusionNodeCount)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+		}
+	}
+
+
+
+	private static void resultsMyMethod() throws IOException {
+		String[] filenames = getATSPFilenames();
+		double[] fusionTime = new double[filenames.length];
+		double[] fusionNodeCount = new double[filenames.length];
+
+		for (int i = 0; i < filenames.length; i++){
+			int[][] data = getATSPInstance(filenames[i]);
+			System.out.println("-----------------" + filenames[i]);
+			n = data.length;
+			int[][] jonker_matrix = makeJonkerMatrix(data);
+			//	int presolve = TSP_Utils.getOptimum(INSTANCE,REPO+"/bestSols.csv");
+			int presolve = (int)getBestSol(filenames[i]); //9999999;
+			fusionAsymUndirected(jonker_matrix, presolve, true);
 		}
 	}
 
@@ -359,14 +389,13 @@ public class Main {
 		return getDataFromProblem(problem);
 	}
 
+	private static String REPO = "easy_atsp/";
 	private static int[][] getATSPInstance(String name) throws IOException {
-		String REPO = "atsp/";
 		org.moeaframework.problem.tsplib.TSPInstance problem = new TSPInstance(new File(REPO + "/" + name));
 		return getDataFromProblem(problem);
 	}
 
 	private static String[] getATSPFilenames() throws IOException {
-		String REPO = "atsp/";
 		File dir = new File(REPO);
 		return dir.list();
 	}

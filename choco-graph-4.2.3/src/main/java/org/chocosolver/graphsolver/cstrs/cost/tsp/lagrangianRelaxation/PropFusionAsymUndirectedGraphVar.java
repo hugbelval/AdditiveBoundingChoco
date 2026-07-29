@@ -114,33 +114,42 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	// CONSTRUCTORS
 	//***********************************************************************************
 
+	public Result hungarianSSP(double[][] costs){
+		HungarianAlgorithm hung = new HungarianAlgorithm(costs);
+		int[] result = hung.execute();
+		return null;
+	}
+
+
 	public Result hungarianIteration(double[][] costs) {
 		int n = costs.length;
 		int m = costs[0].length;
 
 		double lb = 0.0;
+		int[] rows = remainingRows.stream().toArray();
+		int[] cols = remainingCols.stream().toArray();
 
 		// Subtract minimum value from each row
-		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)) {
+		for(int i : rows){
 			double min = Double.POSITIVE_INFINITY;
-			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+			for(int j : cols){
 				min = Math.min(min, costs[i][j]);
 			}
 
 			lb += min;
-			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+			for(int j : cols){
 				costs[i][j] -= min;
 			}
 		}
 
 		// Subtract minimum value from each column
-		for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+		for(int j : cols){
 			double min = Double.POSITIVE_INFINITY;
-			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
+			for(int i : rows)
 				min = Math.min(min, costs[i][j]);
 
 			lb += min;
-			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
+			for(int i : rows)
 				costs[i][j] -= min;
 		}
 
@@ -152,10 +161,10 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		if (true/*lb == 0*/) {
 
 			// Star a zero in each row
-			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
+			for(int i : rows){
 				boolean zeroAssigned = false;
-				for (int j = remainingCols.nextSetBit(0); j >= 0 && !zeroAssigned; j = remainingCols.nextSetBit(j + 1)) {
-					if (costs[i][j] == 0 && !columnHasStar(zeros, j)) {
+				for(int j : cols){
+					if (!zeroAssigned && costs[i][j] == 0 && !columnHasStar(zeros, j)) {
 						zeros[i][j] = 1;
 						zeroAssigned = true;
 					}
@@ -168,8 +177,8 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				gotoCoverCols = false;
 
 				// Cover columns with starred zeros
-				for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
-					for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1))
+				for(int i : rows)
+					for(int j : cols)
 						if (zeros[i][j] == 1)
 							colCovered[j] = true;
 
@@ -178,13 +187,14 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				while (gotoFindZero) {
 					gotoFindZero = false;
 
-					for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
-						for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
-
+					for(int i : rows){
+						//if(rowCovered[i])
+						//	continue;
+						for(int j : cols){
 							if (!gotoCoverCols &&
 									costs[i][j] == 0 &&
-									!rowCovered[i] &&
-									!colCovered[j]) {
+									!colCovered[j] &&
+									!rowCovered[i]) {
 
 								zeros[i][j] = 2;
 								int starCol = findStarInRow(zeros, i);
@@ -236,8 +246,8 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				int missing = nRemaining - starCount;
 
 				double minimum = Double.POSITIVE_INFINITY;
-				for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
-					for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1))
+				for(int i : rows)
+					for(int j : cols)
 						if (!rowCovered[i] && !colCovered[j])
 							minimum = Math.min(minimum, costs[i][j]);
 
@@ -246,8 +256,8 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				}
 				lb += minimum * missing;
 
-				for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
-					for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
+				for(int i : rows){
+					for(int j : cols){
 						if (!rowCovered[i])
 							costs[i][j] -= minimum;
 						if (colCovered[j])
@@ -644,7 +654,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	int M;
 	int[][] originalCostMatrix;
 	protected PropFusionAsymUndirectedGraphVar(Variable[] vars, int[][] costMatrix) {
-		super(vars, PropagatorPriority.VERY_SLOW, true);
+		super(vars, PropagatorPriority.QUADRATIC, true);
 		graphData = "";
 		n = costMatrix.length / 2;
 		nRemaining = n;
@@ -897,7 +907,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		}
 
 		logState();
-
+		removed = 0;
 		fusionRelaxationAsym();
 		int a =3;
 
@@ -907,7 +917,6 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	public void propagate(int evtmask) throws ContradictionException {
 	//	deltaMonitor.unfreeze();
-
 		setReducedCostsFromState();
 		remainingRows = new BitSet(n);
 		remainingCols = new BitSet(n);
@@ -1260,11 +1269,17 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		if(gap > 0){
 			int a =3;
 		}
+
+		/*if(lowerBound > lbBegin){
+			System.out.println("lbImproved at iter " + iter);
+		}*/
+		/*if(removed > 0){
+			System.out.println("Before FW removed " + removed + " at iter " + iter);
+		}*/
 		//System.out.println("RealLowerBound : " + getRealLowerBound(result.zeros)+ " ReportedLowerBound : " + (lowerBound-M*n));
-		if(countStars(result.zeros) == nRemaining){
+		if((/*lowerBound > lbBegin ||*/ removed > 0) && countStars(result.zeros) == nRemaining){
 			filterFloydWarshallNew(lowerBound, result.zeros);
 			costVar.updateLowerBound(getRealLowerBound(result.zeros)+M*n, this);
-			//System.out.println(removed);
 		}
 
 		logState();
@@ -1273,6 +1288,13 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		System.out.println("After logState, lbBegin > lowerBound");
 		}
 		//filterBigReducedCosts(lowerBound, reducedCosts);
+
+		if(removed > 0){
+			/*if(lbBegin >= lowerBound){
+				System.out.println("FILTERNOCHANGE");
+			}
+			System.out.println("After FW removed " + removed + " at iter " + iter);*/
+		}
 		removed = 0;
 		boundDecreased = 0;
 		//count = 0;
