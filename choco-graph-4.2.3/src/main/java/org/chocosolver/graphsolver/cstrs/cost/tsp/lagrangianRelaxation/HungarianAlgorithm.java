@@ -1,6 +1,7 @@
 package org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation;
 
 import java.util.Arrays;
+import java.util.BitSet;
 
 /* Copyright (c) 2012 Kevin L. Stern
  *
@@ -48,48 +49,29 @@ import java.util.Arrays;
  * @author Kevin L. Stern
  */
 public class HungarianAlgorithm {
-    private final double[][] costMatrix;
+    private double[][] costMatrix;
     private final int rows, cols, dim;
+    private BitSet remainingWorkers, remainingJobs;
     private final double[] labelByWorker, labelByJob;
     private final int[] minSlackWorkerByJob;
     private final double[] minSlackValueByJob;
     private final int[] matchJobByWorker, matchWorkerByJob;
     private final int[] parentWorkerByCommittedJob;
     private final boolean[] committedWorkers;
-    private final int lowerBound;
+    private double lowerBound;
 
     /**
      * Construct an instance of the algorithm.
      *
-     * @param costMatrix
      *          the cost matrix, where matrix[i][j] holds the cost of assigning
      *          worker i to job j, for all i, j. The cost matrix must not be
      *          irregular in the sense that all rows must be the same length; in
      *          addition, all entries must be non-infinite numbers.
      */
-    public HungarianAlgorithm(double[][] costMatrix) {
-        this.dim = Math.max(costMatrix.length, costMatrix[0].length);
-        this.rows = costMatrix.length;
-        this.cols = costMatrix[0].length;
-        this.costMatrix = new double[this.dim][this.dim];
-        for (int w = 0; w < this.dim; w++) {
-            if (w < costMatrix.length) {
-                if (costMatrix[w].length != this.cols) {
-                    throw new IllegalArgumentException("Irregular cost matrix");
-                }
-                for (int j = 0; j < this.cols; j++) {
-                    if (Double.isInfinite(costMatrix[w][j])) {
-                        throw new IllegalArgumentException("Infinite cost");
-                    }
-                    if (Double.isNaN(costMatrix[w][j])) {
-                        throw new IllegalArgumentException("NaN cost");
-                    }
-                }
-                this.costMatrix[w] = Arrays.copyOf(costMatrix[w], this.dim);
-            } else {
-                this.costMatrix[w] = new double[this.dim];
-            }
-        }
+    public HungarianAlgorithm(int dim) {
+        this.dim = dim;
+        this.rows = dim;
+        this.cols = dim;
         labelByWorker = new double[this.dim];
         labelByJob = new double[this.dim];
         minSlackWorkerByJob = new int[this.dim];
@@ -109,26 +91,34 @@ public class HungarianAlgorithm {
      * among its incident edges.
      */
     protected void computeInitialFeasibleSolution() {
-        for (int j = 0; j < dim; j++) {
+        for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
             labelByJob[j] = Double.POSITIVE_INFINITY;
         }
-        for (int w = 0; w < dim; w++) {
-            for (int j = 0; j < dim; j++) {
+        for (int w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
+            for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
                 if (costMatrix[w][j] < labelByJob[j]) {
                     labelByJob[j] = costMatrix[w][j];
                 }
             }
         }
-        for (int i = 0; i < dim; i++) {
-            labelByWorker[i] = Double.POSITIVE_INFINITY;
+        for (int w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
+            labelByWorker[w] = Double.POSITIVE_INFINITY;
         }
-        for (int w = 0; w < dim; w++) {
-            for (int j = 0; j < dim; j++) {
+        for (int w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
+            for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
                 if (costMatrix[w][j] - labelByJob[j] < labelByWorker[w]) {
                     labelByWorker[w] = costMatrix[w][j] - labelByJob[j];
                 }
             }
         }
+    }
+
+    private void reset(){
+        lowerBound = 0;
+        Arrays.fill(matchJobByWorker, -1);
+        Arrays.fill(matchWorkerByJob, -1);
+        Arrays.fill(committedWorkers, false);
+        Arrays.fill(parentWorkerByCommittedJob, -1);
     }
 
     /**
@@ -138,7 +128,8 @@ public class HungarianAlgorithm {
      *         provided cost matrix. A matching value of -1 indicates that the
      *         corresponding worker is unassigned.
      */
-    public PropFusionAsymUndirectedGraphVar.Result execute() {
+    public PropFusionAsymUndirectedGraphVar.Result execute(double[][] costMatrix, BitSet remainingRows, BitSet remainingCols) {
+
         /*
          * Heuristics to improve performance: Reduce rows and columns by their
          * smallest element, compute an initial non-zero dual feasible solution and
@@ -146,23 +137,30 @@ public class HungarianAlgorithm {
          */
         // Reduce step included later
         //reduce();
+        reset();
+        this.costMatrix = costMatrix;
+        this.remainingWorkers = remainingRows;
+        this.remainingJobs = remainingCols;
         computeInitialFeasibleSolution();
         greedyMatch();
 
         int w = fetchUnmatchedWorker();
-        while (w < dim) {
+        while (w >= 0) {
             initializePhase(w);
             executePhase();
             w = fetchUnmatchedWorker();
         }
-        /*int[] result = Arrays.copyOf(matchJobByWorker, rows);
-        for (w = 0; w < result.length; w++) {
-            if (result[w] >= cols) {
-                result[w] = -1;
+        int[] matching = Arrays.copyOf(matchJobByWorker, rows);
+        for (w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
+            lowerBound += labelByWorker[w];
+        }
+        for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
+            lowerBound += labelByJob[j];
+            for (w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
+               costMatrix[w][j] = costMatrix[w][j] - labelByJob[j] - labelByWorker[w];
             }
-        }*/
-        PropFusionAsymUndirectedGraphVar.Result result = new PropFusionAsymUndirectedGraphVar.Result()
-        return result;
+        }
+        return new PropFusionAsymUndirectedGraphVar.Result(lowerBound, costMatrix, matching);
     }
 
     /**
@@ -184,10 +182,13 @@ public class HungarianAlgorithm {
      * completes, the matching will have increased in size.
      */
     protected void executePhase() {
+
+        //for (int w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
+          //  for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
         while (true) {
             int minSlackWorker = -1, minSlackJob = -1;
             double minSlackValue = Double.POSITIVE_INFINITY;
-            for (int j = 0; j < dim; j++) {
+            for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
                 if (parentWorkerByCommittedJob[j] == -1) {
                     if (minSlackValueByJob[j] < minSlackValue) {
                         minSlackValue = minSlackValueByJob[j];
@@ -223,7 +224,7 @@ public class HungarianAlgorithm {
                  */
                 int worker = matchWorkerByJob[minSlackJob];
                 committedWorkers[worker] = true;
-                for (int j = 0; j < dim; j++) {
+                for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
                     if (parentWorkerByCommittedJob[j] == -1) {
                         double slack = costMatrix[worker][j] - labelByWorker[worker]
                                 - labelByJob[j];
@@ -243,7 +244,7 @@ public class HungarianAlgorithm {
      */
     protected int fetchUnmatchedWorker() {
         int w;
-        for (w = 0; w < dim; w++) {
+        for (w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
             if (matchJobByWorker[w] == -1) {
                 break;
             }
@@ -256,8 +257,8 @@ public class HungarianAlgorithm {
      * is a heuristic to jump-start the augmentation algorithm.
      */
     protected void greedyMatch() {
-        for (int w = 0; w < dim; w++) {
-            for (int j = 0; j < dim; j++) {
+        for (int w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
+            for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
                 if (matchJobByWorker[w] == -1 && matchWorkerByJob[j] == -1
                         && costMatrix[w][j] - labelByWorker[w] - labelByJob[j] == 0) {
                     match(w, j);
@@ -278,7 +279,7 @@ public class HungarianAlgorithm {
         Arrays.fill(committedWorkers, false);
         Arrays.fill(parentWorkerByCommittedJob, -1);
         committedWorkers[w] = true;
-        for (int j = 0; j < dim; j++) {
+        for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
             minSlackValueByJob[j] = costMatrix[w][j] - labelByWorker[w]
                     - labelByJob[j];
             minSlackWorkerByJob[j] = w;
@@ -336,12 +337,12 @@ public class HungarianAlgorithm {
      * addition, update the minimum slack values appropriately.
      */
     protected void updateLabeling(double slack) {
-        for (int w = 0; w < dim; w++) {
+        for (int w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
             if (committedWorkers[w]) {
                 labelByWorker[w] += slack;
             }
         }
-        for (int j = 0; j < dim; j++) {
+        for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
             if (parentWorkerByCommittedJob[j] != -1) {
                 labelByJob[j] -= slack;
             } else {

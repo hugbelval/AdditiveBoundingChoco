@@ -32,7 +32,6 @@ import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.Hungarian
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionASym;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropFusionAsymUndirectedGraphVar;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropLagr_OneTree;
-import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropLagr_OneTree_APSTART;
 import org.chocosolver.graphsolver.cstrs.cost.tsp.lagrangianRelaxation.PropSymVarFusionASym;
 import org.chocosolver.graphsolver.search.strategy.GraphSearch;
 import org.chocosolver.graphsolver.variables.DirectedGraphVar;
@@ -40,8 +39,6 @@ import org.chocosolver.graphsolver.variables.UndirectedGraphVar;
 import org.chocosolver.solver.Model;
 import org.chocosolver.solver.Solver;
 import org.chocosolver.solver.constraints.Propagator;
-import org.chocosolver.solver.exception.ContradictionException;
-import org.chocosolver.solver.search.loop.monitors.IMonitorContradiction;
 import org.chocosolver.solver.variables.IntVar;
 import org.chocosolver.util.objects.graphs.DirectedGraph;
 import org.chocosolver.util.objects.graphs.UndirectedGraph;
@@ -56,6 +53,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.stream.Collectors;
@@ -91,8 +89,9 @@ public class Main {
 		//resultsFirstLB_vsHeldKarp();
 		//resultsFirstLB_vsSequencing();
 
-		//resultsMyMethod();
-		//resultsTimeAndNodes_vsHeldKarp();
+		//resultsMyMethod();true
+		//TODO Change back interleave when implemented
+		resultsTimeAndNodes_vsHeldKarp();
 
 		//randomLoop();
 		//resultsFirstLB();
@@ -108,9 +107,13 @@ public class Main {
 				doubleArr[i][j] = data[i][j];
 			}
 		}
-		HungarianAlgorithm hung = new HungarianAlgorithm(doubleArr);
-		hung.execute();
-		n = data.length;
+		HungarianAlgorithm hung = new HungarianAlgorithm(4);
+		BitSet remainingRows = new BitSet(4);
+		BitSet remainingCols = new BitSet(4);
+		remainingRows.flip(0,doubleArr[0].length);
+		remainingCols.flip(0,doubleArr[0].length);
+		/*PropFusionAsymUndirectedGraphVar.Result result = hung.execute(doubleArr, remainingRows, remainingCols);
+		n = data.length;*/
 		/*int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
 		fusionAsymUndirected(jonker_matrix, presolve, true);*/
@@ -186,30 +189,30 @@ public class Main {
 			int presolve = (int)getBestSol(filenames[i]); //9999999;
 			Solver resultsBench = heldKarp(jonker_matrix,presolve);
 			benchTime[i] = resultsBench.getTimeCount();
-			Solver resultsFusion = fusionAsymUndirected(jonker_matrix, presolve, true);
-			fusionTime[i] = resultsFusion.getTimeCount();
+			/*Solver resultsFusion = fusionAsymUndirected(jonker_matrix, presolve, false);
+			fusionTime[i] = resultsFusion.getTimeCount();*/
 			Solver resultsSequencing = fusionAsymUndirected(jonker_matrix, presolve, false);
 			sequencingTime[i] = resultsSequencing.getTimeCount();
 
-			fusionNodeCount[i] = resultsFusion.getNodeCount();
+			//fusionNodeCount[i] = resultsFusion.getNodeCount();
 			benchNodeCount[i] = resultsBench.getNodeCount();
 			sequencingNodeCount[i] = resultsSequencing.getNodeCount();
 		}
 
-		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_Fixed_RedCostMethod_LessFW.csv"))) {
+		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_BetterHungarian_LessFW.csv"))) {
 			bw.write("," + String.join(",", filenames)); bw.newLine();
 			bw.write("Held-Karp - temps," + Arrays.stream(benchTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("Held-Karp+Sequencer - temps," + Arrays.stream(sequencingTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
-			bw.write("Held-Karp+Entrelacer - temps," + Arrays.stream(fusionTime)
-					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			//bw.write("Held-Karp+Entrelacer - temps," + Arrays.stream(fusionTime)
+			//		.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("Held-Karp - noeuds," + Arrays.stream(benchNodeCount)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("Held-Karp+Sequencer - noeuds," + Arrays.stream(sequencingNodeCount)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
-			bw.write("Held-Karp+Entrelacer - noeuds," + Arrays.stream(fusionNodeCount)
-					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			//bw.write("Held-Karp+Entrelacer - noeuds," + Arrays.stream(fusionNodeCount)
+			//		.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 		}
 	}
 
@@ -337,13 +340,13 @@ public class Main {
 			int[][] data = randomMatrix();
 			int[][] jonker_matrix = makeJonkerMatrix(data);
 			int presolve = 500000;
-			Solver result1 = fusionAsymUndirected(jonker_matrix, 999999, true);
+			Solver result1 = fusionAsymUndirected(jonker_matrix, 999999, false);
 			//System.out.println("result " + graph.toString());
-			/*Solver result2 = heldKarp(jonker_matrix, 999999);
+			Solver result2 = heldKarp(jonker_matrix, 999999);
 		System.out.println("result " + graph.toString());
 			if(result1.getBestSolutionValue().intValue() != result2.getBestSolutionValue().intValue()){
 				int a = 3;
-			}*/
+			}
 		}
 	}
 
@@ -365,7 +368,7 @@ public class Main {
 		return bench;
 	}
 
-	private static int seed = 7056;
+	private static int seed = 7058;
 	public static int[][] randomMatrix() {
 		Random rand = new Random(seed);
 		seed++;
@@ -389,7 +392,7 @@ public class Main {
 		return getDataFromProblem(problem);
 	}
 
-	private static String REPO = "easy_atsp/";
+	private static String REPO = "atsp/";
 	private static int[][] getATSPInstance(String name) throws IOException {
 		org.moeaframework.problem.tsplib.TSPInstance problem = new TSPInstance(new File(REPO + "/" + name));
 		return getDataFromProblem(problem);
@@ -580,17 +583,6 @@ public class Main {
 		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
 	}
 
-	private static Solver heldKarpAPStart(int[][] costMatrix, int initialUB){
-		createModel(costMatrix, - (n)*M+initialUB);
-		Propagator[] props = new Propagator[]{
-				new PropLagr_OneTree_APSTART(graph, totalCost, costMatrix),
-				//new PropLagr_OneTree(graph, totalCost, costMatrix)
-		};
-		//props[0] = ;
-		// constraints (TSP basic model + lagrangian relaxation)
-		model.tsp_general(graph, totalCost, costMatrix, props).post();
-		return search(costMatrix, true, GraphSearch.MAX_COST);
-	}
 
 	private static Solver fusionBench(int[][] smallCostMatrix, int[][] bigCostMatrix, int initialUB){
 		createModel(bigCostMatrix, initialUB);
