@@ -94,7 +94,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	protected int nbSprints;
 	private static int bigValue = 99999999;
 	public double firstLb = Double.NEGATIVE_INFINITY;
-	public int[][] bestStarZeros;
+	public int[] bestMatching;
 	//private HashSet<Integer> remainingRows;
 	//private HashSet<Integer> remainingCols;
 	//private IStateBitSet remainingNodesState;
@@ -120,11 +120,15 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		return result;
 	}
 
-	private int countStars(int[][] zeros) {
+	public Result hungarianIteration(double[][] costs){
+		Result result = hung.executeOneIter(costs, remainingRows, remainingCols);
+		return result;
+	}
+
+	private int countStars(int[] matching) {
 		int count = 0;
 		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
-			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1))
-				if (zeros[i][j] == 1)
+				if (matching[i] != -1)
 					count++;
 		return count;
 	}
@@ -147,6 +151,10 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		visited.add(node);
 		recStack.add(node);
 		int i = matching[node];
+		if(i == -1){
+			//No outgoing arc
+			return null;
+		}
 		if (recStack.contains(i)) {
 			parent.put(i, node);
 			List<Integer> cycle = new ArrayList<>();
@@ -208,15 +216,19 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	int count = 0;
 
+	double bonusPen = 1;
+
 	public Result edmondsIteration(
 			double[][] matrix,
 			boolean ignoreStars,
 			int[] matching
 	) throws ContradictionException {
+		//TODO pour le moment je pénalise juste un cycle par itération
 		//TODO check je fais quoi avec ça, est-ce que j'exécute juste si countStars est n? ou >n/2? ou 3n/4 ?
-		/*if(starZeros == null && !ignoreStars || countStars(starZeros) < n){
+		if(matching == null && !ignoreStars || countStars(matching) < nRemaining){
+			System.out.println("ShouldntHappen");
 			return new Result(0, matrix, null);
-		}*/
+		}
 		//for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
 		//	for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
 
@@ -242,18 +254,22 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			System.arraycopy(starZeros[i], 1, edges[i - 1], 0, n - 1);*/
 
 		Set<Integer> visited = new HashSet<>();
-		 List<List<Integer>> cycles = new ArrayList<>();
+		List<List<Integer>> cycles = new ArrayList<>();
 
 		// Find cycle
 		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
 			if (!visited.contains(i) /*&& cycle == null*/) {
 				List<Integer> cycle = dfsFindCycle(matching, i, visited,
 						new HashMap<>(), new HashSet<>());
-				if (cycle != null && cycle.size() < n) {
+				int k = 5;
+				if (cycle != null && cycle.size() < n && cycle.size() == 2/* && (cycle.size() < nRemaining/k || cycle.size() > nRemaining-nRemaining/k)*/ ) {
 					cycles.add(cycle);
 				}
 			}
 		}
+
+		boolean foundZeroCol = false;
+		boolean foundZeroRow = false;
 
 		//TODO peut-être refactor ici pour ne pas utiliser les masques, il doit y avoir plus efficace en java
 		// Utiliser tuples pour cycleEdgesMask
@@ -263,66 +279,44 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 					if (cycleEdgesMask[i][j])
 						minimumCandidates.add(matrix[i][j]);*/
 			BitSet cycleBs = createBitsetFromList(cycle);
-			double minimum = bigValue;
+			double minimumInCol = bigValue;
 			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
 				if(!cycleBs.get(i)){
-					continue;
-				}
-				for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
-					if (cycleBs.get(j)){
-						minimum = Math.min(minimum, matrix[i][j]);
+					for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
+						if (cycleBs.get(j)){
+							if(matrix[i][j] > 0)
+								minimumInCol = Math.min(minimumInCol, matrix[i][j]);
+							else
+								foundZeroCol = true;
+						}
 					}
 				}
 			}
+
+			double minimumInRow = bigValue;
+			/*for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
+				if(cycleBs.get(i)){
+					for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
+						if (!cycleBs.get(j)){
+							if(matrix[i][j] > 0)
+								minimumInRow = Math.min(minimumInRow, matrix[i][j]);
+							else
+								foundZeroRow = true;
+						}
+					}
+				}
+			}*/
+			double minimum = Math.min(minimumInRow, minimumInCol);
 
 			if (minimum > bigValue*0.9){
 				//Implique que la meilleure alternative est un infini, donc on est obligé de rester dans le cycle. Contradiction
-				this.fails();
-			}
-
-			if (cycle.size() > 2 && minimum != 0){
-				int a =3;
-			}
-
-			double minimumRows = bigValue;
-			double minimumCols = bigValue;
-
-			/*for (int i = 0; i < edges.length; i++) {
-				for (int j = 0; j < edges[0].length; j++) {
-					if (cycle.contains(i) && edges[i][j] != 1) {
-						if (matrix[i][j] < minimumRows) {
-							minimumRows = matrix[i][j];
-						}
-					}
-					if (i != j && cycle.contains(j) && edges[i][j] != 1) {
-						if (matrix[i][j] < minimumCols) {
-							minimumCols = matrix[i][j];
-						}
-					}
+				if(/*minimumInRow > bigValue*0.9 && !foundZeroRow ||*/minimumInCol >bigValue*0.9 && !foundZeroCol){
+					this.fails();
 				}
-			}*/
-
-			if(minimumCols != minimum){
-				int a =3;
+				minimum = 0;
 			}
-			//double minimum = minimumCols;// Math.max(minimumRows, minimumCols);
 
-
-			//Check if there's at least one non-zero
-
-			/*if (minimum == 0) {
-				for (int i = 0; i < n; i++)
-					for (int j = 0; j < n; j++)
-						if (i != j && matrix[i][j] != 0)
-							minimum = 1;
-			}*/
-
-			/*for (int i = 0; i < cycle.size(); i++) {
-				int from = cycle.get(i);
-				int to = cycle.get((i + 1) % cycle.size());
-				matrix[from][to] += minimum;
-			}*/
-			int updated = 0;
+			/*int updated = 0;
 			BitSet notCycleBs = createBitsetFromList(cycle);
 			notCycleBs.flip(0, n);
 			for (int i = notCycleBs.nextSetBit(0); i >= 0; i = notCycleBs.nextSetBit(i + 1)){
@@ -338,15 +332,14 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 					}
 				}
 			}
+			lb += minimum;*/
 
-			double boundChange = minimum * (cycle.size() - 1);
-			lb += minimum;
+			//System.out.println("by " + minimumInCol + " Penalized cycle " + cycle);
 
-			//System.out.println("[FUSION][EDMONDS] cycle=" + cycle + " minimum=" + minimum + " boundChange=" + boundChange);
-			// For logging cycle changes
-			boundDecreased += boundChange;
+			lb -= penalizeCycle(cycle, matrix, minimum/* + bonusPen*/);
+
 			if (minimum != 0){
-				updateMap(createBitsetFromList(cycle), minimum);
+				updateMap(createBitsetFromList(cycle), minimum/* + bonusPen*/);
 			}
 
 			//TODO ???
@@ -362,6 +355,10 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				for (int row = 0; row < n; row++)
 					matrix[row][col] -= min;
 			}*/
+
+			if(minimum > 0){
+				break;
+			}
 		}
 
 
@@ -376,13 +373,28 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			for (int row = remainingRows.nextSetBit(0); row >= 0; row = remainingRows.nextSetBit(row + 1))
 				matrix[row][col] -= min;
 		}*/
-		if(lb < 0){
+		/*if(lb < 0){
 			System.out.println("ErrorOutOfEdmondNeg");
 			int a =3;
-		}
+		}*/
 		//System.out.println("ActualBoundChangeLB: " + lb);
 
 		return new Result(lb, matrix, null);
+	}
+
+	private double penalizeCycle(List<Integer> cycle, double[][] matrix, double k){
+		int rowsPenalized = 0;
+		for (int i : cycle){
+			if(remainingRows.get(i)){
+				rowsPenalized++;
+				for(int j : cycle){
+					if (remainingCols.get(j) && i != j) {
+						matrix[i][j] += k;
+					}
+				}
+			}
+		}
+		return (rowsPenalized-1) * k;
 	}
 
 	private BitSet createBitsetFromList(List<Integer> list){
@@ -545,6 +557,66 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			int a =3;
 		}
 		reducedCosts[from][to] = bigValue;
+	}
+
+	private void undoAllCycles(){
+		for (BitSet bs : cycleMap.keySet()) {
+			//Si fait partie du K(S)
+			double penalty = cycleMap.get(bs);
+			BitSet notBs = (BitSet) bs.clone();
+			notBs.flip(0, n);
+
+			for (int i = bs.nextSetBit(0); i >= 0; i = bs.nextSetBit(i + 1)) {
+				//Compensate for removed row/cols that would be augmented.
+				//Pour le moment, si une row du cycle n'est pas remaining, c'est forcément qu'un élément de cette
+				// row est dans le cycle, donc rien à faire ici.
+				/*if(arcsEnforcedFromState.quickGet(i) >= 0 && bs.get(arcsEnforcedFromState.quickGet(i))){ //||
+					//	g.getNeighOf(i+n).size() == 2 && i != from && (bs.get(g.getNeighOf(i+n).min()) || bs.get(g.getNeighOf(i+n).max()))){
+					lowerBound+=penalty;
+				}*/
+				/*if(g.getNeighOf(i+n).size() == 2 && i != from && (bs.get(g.getNeighOf(i+n).min()) || bs.get(g.getNeighOf(i+n).max()))){
+					lowerBound+=penalty;
+				}*/
+				if(remainingRows.get(i)){
+					for (int j = bs.nextSetBit(0); j >= 0; j = bs.nextSetBit(j + 1)) {
+						if(remainingCols.get(j)){
+							//System.out.println("i " + i + "j " + j + "before cost" + reducedCosts[i][j]);
+							reducedCosts[i][j] -= penalty;
+							//System.out.println("i " + i + "j " + j + "after cost" + reducedCosts[i][j]);
+						}
+					}
+					lowerBound += penalty;
+				}
+			}
+			// + k*(m-1), ici ça s'occuppe du -1
+			lowerBound -= penalty;
+
+			//TODO gérer les négatifs??
+			/*if(!(bs.get(to) && !bs.get(from))){
+				double penalty = cycleMap.get(bs);
+				lowerBound -= penalty;
+			}*/
+		}
+		cycleMap.clear();
+		double minimum = bigValue;
+		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)) {
+			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+				if(reducedCosts[i][j] < minimum){
+					minimum = reducedCosts[i][j];
+				}
+			}
+		}
+
+		if(minimum < 0){
+			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)) {
+				for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+					if(reducedCosts[i][j] < minimum){
+						reducedCosts[i][j] -= minimum;
+					}
+				}
+				lowerBound += minimum;
+			}
+		}
 	}
 
 	int wi = 7;
@@ -817,26 +889,20 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	double lbBegin = 0;
 	protected void fusionRelaxationAsym() throws ContradictionException {
 		iter++;
-		if(iter == 10){
-			int a =3;
-		}
 		double maxLb;
 		maxLb = Double.NEGATIVE_INFINITY;
 		Result result = null;
-		double[][] bestReducedCosts = null;
 		int maxNonImprove = 1;
 		nbSprints = n;
-		//cycleMap = new HashMap<>();
 		int nonImprove = 0;
 		int i = 0;
 		lbBegin = lowerBound;
+		boolean shouldContinue = true;
+		int hungIters = 0;
 
-		while (i < nbSprints && nonImprove < maxNonImprove){
-			//updateRemainingArcs();
-
-			if(interleave) {
-				double prevLb = lowerBound;
-				result = null;//hungarianIteration(reducedCosts);
+		while (shouldContinue && i < nbSprints && nonImprove < maxNonImprove){
+			if(false && interleave) {
+				result = hungarianIteration(reducedCosts);
 				lowerBound += result.lb;
 				reducedCosts = result.array;
 			}
@@ -844,14 +910,21 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				result = hungarianSSP(reducedCosts);
 				lowerBound += result.lb;
 				reducedCosts = result.array;
-				basicFiltering(reducedCosts, lowerBound);
+				if(getRealLowerBound(result.matching) + n*M != lowerBound){
+					int a =3;
+				}
+				if(result.lb > 0){
+					//System.out.println("hungIter" + hungIters + " lbdiff " + result.lb);
+					//System.out.println("lowerBound " + (lowerBound-M*n));
+				}
+				hungIters++;
 			}
 
 			basicFiltering(reducedCosts, lowerBound);
-			if (lowerBound > maxLb) {
+			if (lowerBound > maxLb /*+ bonusPen*/) {
 				maxLb = lowerBound;
 				if (result.matching!= null){
-					//bestStarZeros = result.zeros;
+					bestMatching = result.matching;
 				}
 				nonImprove = 0;
 			}
@@ -859,24 +932,41 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				nonImprove++;
 			}
 
+			if(hungIters == 1){
+				//filterFloydWarshallNew(lowerBound, result.matching);
+			}
 
 			if(interleave){
 				result = edmondsIteration(reducedCosts, false, result.matching);
+				if(result.lb > 0){
+					int a =3;
+				}
 				lowerBound += result.lb;
+				/*if(result.lb == 0){
+					shouldContinue = false;
+				}*/
 			} else {
-				while(result.lb > 0) {
+				/*while(result.lb > 0) {
+					//TODO doesnt work for now, should ignoreStars
 					result = edmondsIteration(reducedCosts, false, result.matching);
 					lowerBound += result.lb;
 					basicFiltering(reducedCosts, lowerBound);
-				}
+					if(result.lb > 0){
+						int a =3;
+					}
+				}*/
 			}
 
 			if (lowerBound - Math.floor(lowerBound) < 0.001) {
 				lowerBound = Math.floor(lowerBound);
 			}
 
-
-			costVar.updateLowerBound((int) Math.ceil(maxLb), this);
+			try{
+				costVar.updateLowerBound((int) Math.ceil(maxLb), this);
+			}
+			catch(ContradictionException e) {
+				throw e;
+			}
 			i++;
 		}
         //System.out.println(i);
@@ -889,6 +979,14 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		lowerBound += result.lb;
 		reducedCosts = result.array;
 
+		logState();
+
+		if(interleave){
+			//undoAllCycles();
+		}
+
+		//TODO put back here whats on top of interleave)
+
 		/*if(lowerBound > lbBegin){
 			System.out.println("lbImproved at iter " + iter);
 		}*/
@@ -898,10 +996,14 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		//System.out.println("RealLowerBound : " + getRealLowerBound(result.zeros)+ " ReportedLowerBound : " + (lowerBound-M*n));
 		if((removed > 0)){
 			filterFloydWarshallNew(lowerBound, result.matching);
-			costVar.updateLowerBound(getRealLowerBound(result.matching)+M*n, this);
+			/*try{
+				costVar.updateLowerBound(getRealLowerBound(result.matching)+M*n, this);
+			}
+			catch(ContradictionException e) {
+				throw e;
+			}*/
 		}
 
-		logState();
 
 		if(lbBegin > lowerBound){
 		//System.out.println("After logState, lbBegin > lowerBound");
@@ -920,7 +1022,11 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		if(maxLb > 5600) {
 			int a = 3;
 		}
+		if(iter <= 10){
+			//System.out.println(lowerBound - M*n);
+		}
 	}
+
 	private void logState() throws ContradictionException {
 		updateRemaining();
 		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)) {

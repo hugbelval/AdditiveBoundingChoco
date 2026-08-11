@@ -111,6 +111,11 @@ public class HungarianAlgorithm {
                 }
             }
         }
+        for (int w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1))
+            lowerBound += labelByWorker[w];
+
+        for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1))
+            lowerBound += labelByJob[j];
     }
 
     private void reset(){
@@ -152,16 +157,46 @@ public class HungarianAlgorithm {
         }
         int[] matching = Arrays.copyOf(matchJobByWorker, rows);
         for (w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
-            lowerBound += labelByWorker[w];
         }
         for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
-            lowerBound += labelByJob[j];
             for (w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
                costMatrix[w][j] = costMatrix[w][j] - labelByJob[j] - labelByWorker[w];
             }
         }
         return new PropFusionAsymUndirectedGraphVar.Result(lowerBound, costMatrix, matching);
     }
+
+    public PropFusionAsymUndirectedGraphVar.Result executeOneIter(double[][] costMatrix, BitSet remainingRows, BitSet remainingCols) {
+
+        /*
+         * Heuristics to improve performance: Reduce rows and columns by their
+         * smallest element, compute an initial non-zero dual feasible solution and
+         * create a greedy matching from workers to jobs of the cost matrix.
+         */
+        // Reduce step included later
+        //reduce();
+        reset();
+        this.costMatrix = costMatrix;
+        this.remainingWorkers = remainingRows;
+        this.remainingJobs = remainingCols;
+        computeInitialFeasibleSolution();
+        greedyMatch();
+
+        int w = fetchUnmatchedWorker();
+        while (w >= 0 && lowerBound == 0) {
+            initializePhase(w);
+            executePhase();
+            w = fetchUnmatchedWorker();
+        }
+        int[] matching = Arrays.copyOf(matchJobByWorker, rows);
+        for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
+            for (w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
+                costMatrix[w][j] = costMatrix[w][j] - labelByJob[j] - labelByWorker[w];
+            }
+        }
+        return new PropFusionAsymUndirectedGraphVar.Result(lowerBound, costMatrix, matching);
+    }
+
 
     /**
      * Execute a single phase of the algorithm. A phase of the Hungarian algorithm
@@ -340,11 +375,13 @@ public class HungarianAlgorithm {
         for (int w = remainingWorkers.nextSetBit(0); w >= 0; w = remainingWorkers.nextSetBit(w + 1)){
             if (committedWorkers[w]) {
                 labelByWorker[w] += slack;
+                lowerBound += slack;
             }
         }
         for (int j = remainingJobs.nextSetBit(0); j >= 0; j = remainingJobs.nextSetBit(j + 1)){
             if (parentWorkerByCommittedJob[j] != -1) {
                 labelByJob[j] -= slack;
+                lowerBound -= slack;
             } else {
                 minSlackValueByJob[j] -= slack;
             }

@@ -203,8 +203,8 @@ public class GraphSearch extends GraphStrategy {
 						}
 						break;
 					case REDUCED_COST_INTERLEAVE:
-						if(i > n/2 && this.interleave != null && interleave.bestStarZeros != null
-								&& interleave.bestStarZeros[i-n/2][j] == 1) {
+						if(i > n/2 && this.interleave != null && interleave.bestMatching != null
+								&& interleave.bestMatching[i-n/2] == j) {
 							from = i;
 							to = j;
 							yes++;
