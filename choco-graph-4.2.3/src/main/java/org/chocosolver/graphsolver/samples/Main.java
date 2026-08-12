@@ -317,19 +317,19 @@ public class Main {
 	}
 
 	private static void randomLoop(){
-		n = 4;
+		n = 8;
 	while (true){
 			int[][] data = randomMatrix();
 			int[][] jonker_matrix = makeJonkerMatrix(data);
 			int presolve = 500000;
 			Solver result1 = fusionAsymUndirected(jonker_matrix, 999999, true);
 			//System.out.println("result " + graph.toString());
-			Solver result2 = fusionAsymUndirected(jonker_matrix, 999999, false);
+			Solver result2 = heldKarp(jonker_matrix, 999999);
 		//System.out.println("result " + graph.toString());
 			/*if(result1.getNodeCount() < result2.getNodeCount()){
 				int a = 3;
 			}*/
-			if(result1.getNodeCount() > result2.getNodeCount()){
+			if(result1.getBestSolutionValue().intValue() != result2.getBestSolutionValue().intValue()){
 				int a = 3;
 			}
 		}
@@ -552,7 +552,7 @@ public class Main {
 		// constraints (TSP basic model + lagrangian relaxation)
 		hk = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		model.tsp(graph, totalCost, costMatrix, 1, hk).post();
-		return search(costMatrix, true, GraphSearch.MAX_COST);
+		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
 	}
 
 	private static Solver fusionAsymUndirected(int[][] costMatrix, int initialUB, boolean interleave){
@@ -566,9 +566,8 @@ public class Main {
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)
 		model.tsp_general(graph, totalCost, costMatrix, props).post();
-		return search(costMatrix, true, GraphSearch.MAX_COST);
+		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
 	}
-
 
 	private static Solver fusionBench(int[][] smallCostMatrix, int[][] bigCostMatrix, int initialUB){
 		createModel(bigCostMatrix, initialUB);

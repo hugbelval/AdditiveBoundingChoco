@@ -92,7 +92,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	int nRemaining;
 	protected boolean waitFirstSol;
 	protected int nbSprints;
-	private static int bigValue = 99999999;
+	private static int bigValue = 2000000000;
 	public double firstLb = Double.NEGATIVE_INFINITY;
 	public int[] bestMatching;
 	//private HashSet<Integer> remainingRows;
@@ -262,7 +262,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				List<Integer> cycle = dfsFindCycle(matching, i, visited,
 						new HashMap<>(), new HashSet<>());
 				int k = 5;
-				if (cycle != null && cycle.size() < n && cycle.size() == 2/* && (cycle.size() < nRemaining/k || cycle.size() > nRemaining-nRemaining/k)*/ ) {
+				if (cycle != null && cycle.size() < n && cycle.size() <= 2/* && (cycle.size() < nRemaining/k || cycle.size() > nRemaining-nRemaining/k)*/ ) {
 					cycles.add(cycle);
 				}
 			}
@@ -294,7 +294,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			}
 
 			double minimumInRow = bigValue;
-			/*for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
+			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
 				if(cycleBs.get(i)){
 					for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
 						if (!cycleBs.get(j)){
@@ -305,17 +305,20 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 						}
 					}
 				}
-			}*/
-			double minimum = Math.min(minimumInRow, minimumInCol);
-
-			if (minimum > bigValue*0.9){
-				//Implique que la meilleure alternative est un infini, donc on est obligé de rester dans le cycle. Contradiction
-				if(/*minimumInRow > bigValue*0.9 && !foundZeroRow ||*/minimumInCol >bigValue*0.9 && !foundZeroCol){
-					this.fails();
-				}
-				minimum = 0;
 			}
 
+			double minimum = Math.max(minimumInRow, minimumInCol);
+
+			if (minimum > bigValue*0.9){
+				if(minimumInRow > bigValue*0.9 && minimumInCol > bigValue*0.9){
+					if(!foundZeroRow || !foundZeroCol){
+						this.fails();
+					}
+					minimum = 0;
+				} else{
+					minimum = Math.min(minimumInRow,minimumInCol);
+				}
+			}
 			/*int updated = 0;
 			BitSet notCycleBs = createBitsetFromList(cycle);
 			notCycleBs.flip(0, n);
@@ -382,6 +385,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		return new Result(lb, matrix, null);
 	}
 
+
 	private double penalizeCycle(List<Integer> cycle, double[][] matrix, double k){
 		int rowsPenalized = 0;
 		for (int i : cycle){
@@ -407,13 +411,17 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	private void updateMap(BitSet bs, Double value){
 		Double old = cycleMap.get(bs);
-		//System.out.println("updateMap bs: " + bs.toString() + "penalty " + value + "lb " + lowerBound + "worldindex " + model.getEnvironment().getWorldIndex());
+	/*	System.out.println("[UPDATEMAP-PRE] bs=" + bs + " currentMapValue=" + old
+				+ " delta=" + value + " expectedAfter=" + (old == null ? value : old + value)
+				+ " worldindex=" + model.getEnvironment().getWorldIndex()
+				+ " identityHash=" + System.identityHashCode(cycleMap));*/
 		model.getEnvironment().save(() -> {
-			//System.out.println("undo updateMap bs: " + bs.toString() + "penalty " + value  + "worldindex" + model.getEnvironment().getWorldIndex());
 			if (old == null) cycleMap.remove(bs);
 			else cycleMap.put(bs, old);
 		});
 		cycleMap.merge(bs, value, Double::sum);
+		/*System.out.println("[UPDATEMAP-POST] bs=" + bs + " newMapValue=" + cycleMap.get(bs)
+				+ " worldindex=" + model.getEnvironment().getWorldIndex());*/
 		//cycleMap.put(bs, value);
 	}
 
@@ -886,9 +894,26 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		}
 	}
 
+	int getNb2Cycles(int[] matching){
+		Set<Integer> visited = new HashSet<>();
+		List<List<Integer>> cycles = new ArrayList<>();
+		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
+			if (!visited.contains(i) /*&& cycle == null*/) {
+				List<Integer> cycle = dfsFindCycle(matching, i, visited,
+						new HashMap<>(), new HashSet<>());
+				int k = 5;
+				if (cycle != null && cycle.size() < n && cycle.size() == 2/* && (cycle.size() < nRemaining/k || cycle.size() > nRemaining-nRemaining/k)*/ ) {
+					cycles.add(cycle);
+				}
+			}
+		}
+		return cycles.size();
+	}
+
 	double lbBegin = 0;
 	protected void fusionRelaxationAsym() throws ContradictionException {
 		iter++;
+		//System.out.println("start");
 		double maxLb;
 		maxLb = Double.NEGATIVE_INFINITY;
 		Result result = null;
@@ -900,6 +925,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		boolean shouldContinue = true;
 		int hungIters = 0;
 
+		//undoAllCycles();
 		while (shouldContinue && i < nbSprints && nonImprove < maxNonImprove){
 			if(false && interleave) {
 				result = hungarianIteration(reducedCosts);
@@ -931,9 +957,10 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			else {
 				nonImprove++;
 			}
+			//System.out.println(getNb2Cycles(result.matching));
 
 			if(hungIters == 1){
-				//filterFloydWarshallNew(lowerBound, result.matching);
+				filterFloydWarshallNew(lowerBound, result.matching);
 			}
 
 			if(interleave){
