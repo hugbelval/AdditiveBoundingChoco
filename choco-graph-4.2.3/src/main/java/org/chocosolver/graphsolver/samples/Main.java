@@ -88,7 +88,7 @@ public class Main {
 		//resultsFirstLB_vsSequencing();
 
 		//resultsMyMethod();true
-		resultsTimeAndNodes_vsHeldKarp();
+		//resultsTimeAndNodes_vsHeldKarp();
 
 		//randomLoop();
 		//resultsFirstLB();
@@ -100,7 +100,8 @@ public class Main {
 		int[][] jonker_matrix = makeJonkerMatrix(data);
 		int presolve = (int)getBestSol(fileName);
 		fusionAsymUndirected(jonker_matrix, presolve, true);
-		//heldKarp(jonker_matrix, presolve);
+	//	Solver solver = heldKarp(jonker_matrix, presolve);
+		int a =3;
 		//Solver solver = heldKarp(jonker_matrix, presolve);
 		//fusionAsymUndirected(jonker_matrix, presolve, true);
 		//fusionAsym(data, presolve, true);
@@ -552,7 +553,7 @@ public class Main {
 		// constraints (TSP basic model + lagrangian relaxation)
 		hk = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		model.tsp(graph, totalCost, costMatrix, 1, hk).post();
-		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
+		return search(costMatrix, true, GraphSearch.MAX_COST);
 	}
 
 	private static Solver fusionAsymUndirected(int[][] costMatrix, int initialUB, boolean interleave){
@@ -566,7 +567,7 @@ public class Main {
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)
 		model.tsp_general(graph, totalCost, costMatrix, props).post();
-		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
+		return search(costMatrix, true, GraphSearch.MAX_COST);
 	}
 
 	private static Solver fusionBench(int[][] smallCostMatrix, int[][] bigCostMatrix, int initialUB){

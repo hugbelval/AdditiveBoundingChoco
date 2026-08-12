@@ -184,16 +184,21 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	int removed = 0;
 
 	public void basicFiltering(double[][] reducedCostsArray, double lowerBound) throws ContradictionException {
-
 		double delta = costVar.getUB() - lowerBound;
+		System.out.println("[DELTA-CHECK] ub=" + costVar.getUB()
+				+ " lowerBound=" + String.format("%.10f", lowerBound)
+				+ " delta=" + String.format("%.10f", delta)
+				+ " worldindex=" + model.getEnvironment().getWorldIndex());
 		if (delta < 0){
 			this.fails();
 		}
 		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
 			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
 				if (gV.getUB().isArcOrEdge(i+n,j) && i != j && reducedCostsArray[i][j] > delta) {
-					//System.out.println("[FUSION][BASICFILTER] remove " + (i+n) + "->" + j
-					//		+ " rc=" + reducedCostsArray[i][j] + " delta=" + delta + " lb=" + lowerBound);
+					if (i == 23 && j == 20) {
+						System.out.println("[CRITICAL-REMOVE] arc(23,20) reducedCost=" + reducedCostsArray[i][j]
+								+ " delta=" + delta + " worldindex=" + model.getEnvironment().getWorldIndex());
+					}
 					reducedCostsArray[i][j] = bigValue;
 					remove(i+n, j);
 				}
@@ -337,7 +342,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			}
 			lb += minimum;*/
 
-			//System.out.println("by " + minimumInCol + " Penalized cycle " + cycle);
+			System.out.println("by " + minimumInCol + " Penalized cycle " + cycle);
 
 			lb -= penalizeCycle(cycle, matrix, minimum/* + bonusPen*/);
 
@@ -394,6 +399,12 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				for(int j : cycle){
 					if (remainingCols.get(j) && i != j) {
 						matrix[i][j] += k;
+						if (i == 23 && j == 20 || i == 20 && j == 23) {
+							System.out.println("[CRITICAL-PENALIZE] cycle=" + cycle + " arc(" + i + "," + j + ") k=" + k
+									+ " newValue=" + matrix[i][j] + " worldindex=" + model.getEnvironment().getWorldIndex());
+						}
+						System.out.println("[PENALIZE] cycle=" + cycle + " i=" + i + " j=" + j
+								+ " k=" + k + " worldindex=" + model.getEnvironment().getWorldIndex());
 					}
 				}
 			}
@@ -411,22 +422,22 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	private void updateMap(BitSet bs, Double value){
 		Double old = cycleMap.get(bs);
-	/*	System.out.println("[UPDATEMAP-PRE] bs=" + bs + " currentMapValue=" + old
+		System.out.println("[UPDATEMAP-PRE] bs=" + bs + " currentMapValue=" + old
 				+ " delta=" + value + " expectedAfter=" + (old == null ? value : old + value)
 				+ " worldindex=" + model.getEnvironment().getWorldIndex()
-				+ " identityHash=" + System.identityHashCode(cycleMap));*/
+				+ " identityHash=" + System.identityHashCode(cycleMap));
 		model.getEnvironment().save(() -> {
 			if (old == null) cycleMap.remove(bs);
 			else cycleMap.put(bs, old);
 		});
 		cycleMap.merge(bs, value, Double::sum);
-		/*System.out.println("[UPDATEMAP-POST] bs=" + bs + " newMapValue=" + cycleMap.get(bs)
-				+ " worldindex=" + model.getEnvironment().getWorldIndex());*/
+		System.out.println("[UPDATEMAP-POST] bs=" + bs + " newMapValue=" + cycleMap.get(bs)
+				+ " worldindex=" + model.getEnvironment().getWorldIndex());
 		//cycleMap.put(bs, value);
 	}
 
 	private void removeMap(BitSet bs){
-		//System.out.println("removeMap bs: " + bs.toString() +  "lb " + lowerBound + "worldindex " + model.getEnvironment().getWorldIndex());
+		System.out.println("removeMap bs: " + bs.toString() +  "lb " + lowerBound + "worldindex " + model.getEnvironment().getWorldIndex());
 		Double old = cycleMap.get(bs);
 		if (old == null) return;
 		model.getEnvironment().save(() -> {
@@ -588,9 +599,9 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				if(remainingRows.get(i)){
 					for (int j = bs.nextSetBit(0); j >= 0; j = bs.nextSetBit(j + 1)) {
 						if(remainingCols.get(j)){
-							//System.out.println("i " + i + "j " + j + "before cost" + reducedCosts[i][j]);
+							System.out.println("i " + i + "j " + j + "before cost" + reducedCosts[i][j]);
 							reducedCosts[i][j] -= penalty;
-							//System.out.println("i " + i + "j " + j + "after cost" + reducedCosts[i][j]);
+						System.out.println("i " + i + "j " + j + "after cost" + reducedCosts[i][j]);
 						}
 					}
 					lowerBound += penalty;
@@ -680,11 +691,24 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 					if(remainingRows.get(i)){
 						for (int j = bs.nextSetBit(0); j >= 0; j = bs.nextSetBit(j + 1)) {
 							if(remainingCols.get(j)){
-								//System.out.println("i " + i + "j " + j + "before cost" + reducedCosts[i][j]);
+									 System.out.println("[UNDO-ENFORCE-APPLY] bs=" + bs + " i=" + i + " j=" + j
+								+ " penalty=" + penalty + " before=" + reducedCosts[i][j]
+								+ " worldindex=" + model.getEnvironment().getWorldIndex());
 								reducedCosts[i][j] += penalty;
-								//System.out.println("i " + i + "j " + j + "after cost" + reducedCosts[i][j]);
+								System.out.println("[UNDO-ENFORCE-APPLY] bs=" + bs + " i=" + i + " j=" + j
+										+ " after=" + reducedCosts[i][j]);
+							}
+							else {
+								System.out.println("[UNDO-ENFORCE-SKIP-COL] bs=" + bs + " i=" + i + " j=" + j
+										+ " penalty=" + penalty + " reason=colNotRemaining"
+										+ " worldindex=" + model.getEnvironment().getWorldIndex());
 							}
 						}
+					}
+					else {
+						System.out.println("[UNDO-ENFORCE-SKIP-ROW] bs=" + bs + " i=" + i
+								+ " penalty=" + penalty + " reason=rowNotRemaining"
+								+ " worldindex=" + model.getEnvironment().getWorldIndex());
 					}
 				}
 
@@ -753,8 +777,9 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	public void propagate(int idVar, int evtMask) throws ContradictionException {
 		updateRemaining();
-		//System.out.println("worldindex " + model.getEnvironment().getWorldIndex());
-		//System.out.println("graph " + g.toString());
+		System.out.println("worldindex " + model.getEnvironment().getWorldIndex());
+		System.out.println("graph " + g.toString());
+		System.out.println("nremaining " + nRemaining);
 		deltaMonitor.freeze();
 		try{
 			setReducedCostsFromState();
@@ -940,8 +965,8 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 					int a =3;
 				}
 				if(result.lb > 0){
-					//System.out.println("hungIter" + hungIters + " lbdiff " + result.lb);
-					//System.out.println("lowerBound " + (lowerBound-M*n));
+					System.out.println("hungIter" + hungIters + " lbdiff " + result.lb);
+					System.out.println("lowerBound " + (lowerBound-M*n));
 				}
 				hungIters++;
 			}
@@ -984,9 +1009,11 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				}*/
 			}
 
+			System.out.println("lb before floor : " + lowerBound);
 			if (lowerBound - Math.floor(lowerBound) < 0.001) {
 				lowerBound = Math.floor(lowerBound);
 			}
+			System.out.println("lb after floor : " + lowerBound);
 
 			try{
 				costVar.updateLowerBound((int) Math.ceil(maxLb), this);
@@ -1087,8 +1114,11 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 						this.fails();
 					}
 				}
-				//System.out.println("[FUSION][UPDATEREMAINING-ENFORCE] " + (i+n) + " -> " + neigh);
+				System.out.println("[FUSION][UPDATEREMAINING-ENFORCE] " + (i+n) + " -> " + neigh);
 
+				if(i == 23){
+					int a =3;
+				}
 				gV.enforceArc(i+n, neigh, this);
 				arcEnforcedPropagation(i+n, neigh);
 				if(reducedCosts[i][neigh] != 0){
@@ -1138,7 +1168,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	// INFERENCE
 	//***********************************************************************************
 	public void remove(int from, int to) throws ContradictionException {
-		//System.out.println("[FUSION][REMOVE] " + from + " -> " + to);
+		System.out.println("[FUSION][REMOVE] " + from + " -> " + to);
 		removed++;
 		gV.removeArc(from, to, this);
 	}
