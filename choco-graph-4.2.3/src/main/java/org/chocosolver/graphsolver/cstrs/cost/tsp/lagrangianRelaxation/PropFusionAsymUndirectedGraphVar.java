@@ -125,6 +125,210 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		return result;
 	}
 
+	public Result oldHungarianIteration(double[][] costs) {
+		int n = costs.length;
+		int m = costs[0].length;
+
+		double lb = 0.0;
+
+		// Subtract minimum value from each row
+		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)) {
+			double min = Double.POSITIVE_INFINITY;
+			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+				min = Math.min(min, costs[i][j]);
+			}
+
+			lb += min;
+			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+				costs[i][j] -= min;
+			}
+		}
+
+		// Subtract minimum value from each column
+		for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+			double min = Double.POSITIVE_INFINITY;
+			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
+				min = Math.min(min, costs[i][j]);
+
+			lb += min;
+			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
+				costs[i][j] -= min;
+		}
+
+		int[][] zeros = new int[n][n]; // 0 = empty, 1 = star, 2 = prime
+		boolean[] rowCovered = new boolean[n];
+		boolean[] colCovered = new boolean[n];
+
+		//Fais cette étape seulement si la précédente n'a pas modifié la borne
+		if (true/*lb == 0*/) {
+
+			// Star a zero in each row
+			for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
+				boolean zeroAssigned = false;
+				for (int j = remainingCols.nextSetBit(0); j >= 0 && !zeroAssigned; j = remainingCols.nextSetBit(j + 1)) {
+					if (costs[i][j] == 0 && !columnHasStar(zeros, j)) {
+						zeros[i][j] = 1;
+						zeroAssigned = true;
+					}
+				}
+			}
+
+			boolean gotoCoverCols = true;
+
+			while (gotoCoverCols) {
+				gotoCoverCols = false;
+
+				// Cover columns with starred zeros
+				for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
+					for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1))
+						if (zeros[i][j] == 1)
+							colCovered[j] = true;
+
+				boolean gotoFindZero = true;
+
+				while (gotoFindZero) {
+					gotoFindZero = false;
+
+					for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
+						for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
+
+							if (!gotoCoverCols &&
+									costs[i][j] == 0 &&
+									!rowCovered[i] &&
+									!colCovered[j]) {
+
+								zeros[i][j] = 2;
+								int starCol = findStarInRow(zeros, i);
+								if (starCol != -1) {
+									rowCovered[i] = true;
+									colCovered[starCol] = false;
+									gotoFindZero = true;
+								} else {
+									gotoCoverCols = true;
+
+									// Trouver chemin
+									int currentRow = i;
+									int currentCol = j;
+									boolean done = false;
+
+									while (!done) {
+										int starRow = findStarInCol(zeros, currentCol, currentRow);
+										if (starRow != -1) {
+											zeros[starRow][currentCol] = 0;
+											currentRow = starRow;
+
+											int primeCol = findPrimeInRow(zeros, currentRow);
+											zeros[currentRow][primeCol] = 1;
+											currentCol = primeCol;
+										} else {
+											zeros[currentRow][currentCol] = 1;
+											done = true;
+										}
+									}
+									zeros[i][j] = 1;
+
+									// Unprime all primed and uncover all lines
+									for (int ii = 0; ii < n; ii++)
+										for (int jj = 0; jj < m; jj++)
+											if (zeros[ii][jj] == 2)
+												zeros[ii][jj] = 0;
+
+									Arrays.fill(rowCovered, false);
+									Arrays.fill(colCovered, false);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			int starCount = countStars(zeros);
+			if (starCount < nRemaining) {
+				int missing = nRemaining - starCount;
+
+				double minimum = Double.POSITIVE_INFINITY;
+				for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
+					for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1))
+						if (!rowCovered[i] && !colCovered[j])
+							minimum = Math.min(minimum, costs[i][j]);
+
+				if(minimum> bigValue*0.9){
+					int a =3;
+				}
+				lb += minimum * missing;
+
+				for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
+					for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
+						if (!rowCovered[i])
+							costs[i][j] -= minimum;
+						if (colCovered[j])
+							costs[i][j] += minimum;
+					}
+				}
+			}
+			return new Result(lb, costs, convertZerosToMatching(zeros));
+		}
+		else{
+			return new Result(lb, costs, null);
+		}
+	}
+
+	private int[] convertZerosToMatching(int[][] zeros){
+		int[] matching = new int[n];
+		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)) {
+			matching[i] = -1;
+			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)) {
+				if(zeros[i][j] == 1){
+					matching[i] = j;
+				}
+			}
+		}
+		return matching;
+	}
+
+	private static boolean columnHasStar(int[][] zeros, int col) {
+		for (int[] zero : zeros)
+			if (zero[col] == 1)
+				return true;
+		return false;
+	}
+
+	/*
+		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
+			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
+	*/
+	private int findStarInRow(int[][] zeros, int row) {
+		for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1))
+			if (zeros[row][j] == 1)
+				return j;
+		return -1;
+	}
+
+	private int findStarInCol(int[][] zeros, int col, int rowExcept) {
+		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
+			if (i != rowExcept && zeros[i][col] == 1)
+				return i;
+		return -1;
+	}
+
+	private int findPrimeInRow(int[][] zeros, int row) {
+		for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1))
+			if (zeros[row][j] == 2)
+				return j;
+		return -1;
+	}
+
+	private int countStars(int[][] zeros) {
+		int count = 0;
+		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
+			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1))
+				if (zeros[i][j] == 1)
+					count++;
+		return count;
+	}
+
+
+
 	private int countStars(int[] matching) {
 		int count = 0;
 		for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1))
@@ -185,10 +389,10 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	public void basicFiltering(double[][] reducedCostsArray, double lowerBound) throws ContradictionException {
 		double delta = costVar.getUB() - lowerBound;
-		System.out.println("[DELTA-CHECK] ub=" + costVar.getUB()
+		/*System.out.println("[DELTA-CHECK] ub=" + costVar.getUB()
 				+ " lowerBound=" + String.format("%.10f", lowerBound)
 				+ " delta=" + String.format("%.10f", delta)
-				+ " worldindex=" + model.getEnvironment().getWorldIndex());
+				+ " worldindex=" + model.getEnvironment().getWorldIndex());*/
 		if (delta < 0){
 			this.fails();
 		}
@@ -196,8 +400,8 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			for (int j = remainingCols.nextSetBit(0); j >= 0; j = remainingCols.nextSetBit(j + 1)){
 				if (gV.getUB().isArcOrEdge(i+n,j) && i != j && reducedCostsArray[i][j] > delta) {
 					if (i == 23 && j == 20) {
-						System.out.println("[CRITICAL-REMOVE] arc(23,20) reducedCost=" + reducedCostsArray[i][j]
-								+ " delta=" + delta + " worldindex=" + model.getEnvironment().getWorldIndex());
+						/*System.out.println("[CRITICAL-REMOVE] arc(23,20) reducedCost=" + reducedCostsArray[i][j]
+								+ " delta=" + delta + " worldindex=" + model.getEnvironment().getWorldIndex());*/
 					}
 					reducedCostsArray[i][j] = bigValue;
 					remove(i+n, j);
@@ -221,7 +425,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	int count = 0;
 
-	double bonusPen = 1;
+	double bonusPen = 0;
 
 	public Result edmondsIteration(
 			double[][] matrix,
@@ -231,7 +435,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		//TODO pour le moment je pénalise juste un cycle par itération
 		//TODO check je fais quoi avec ça, est-ce que j'exécute juste si countStars est n? ou >n/2? ou 3n/4 ?
 		if(matching == null && !ignoreStars || countStars(matching) < nRemaining){
-			System.out.println("ShouldntHappen");
+			//System.out.println("ShouldntHappen");
 			return new Result(0, matrix, null);
 		}
 		//for (int i = remainingRows.nextSetBit(0); i >= 0; i = remainingRows.nextSetBit(i + 1)){
@@ -267,7 +471,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				List<Integer> cycle = dfsFindCycle(matching, i, visited,
 						new HashMap<>(), new HashSet<>());
 				int k = 5;
-				if (cycle != null && cycle.size() < n && cycle.size() <= 2/* && (cycle.size() < nRemaining/k || cycle.size() > nRemaining-nRemaining/k)*/ ) {
+				if (cycle != null && cycle.size() < n && cycle.size() == 2 /*&& (cycle.size() < nRemaining/k || cycle.size() > nRemaining-nRemaining/k)*/ ) {
 					cycles.add(cycle);
 				}
 			}
@@ -342,7 +546,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			}
 			lb += minimum;*/
 
-			System.out.println("by " + minimumInCol + " Penalized cycle " + cycle);
+			//System.out.println("by " + minimumInCol + " Penalized cycle " + cycle);
 
 			lb -= penalizeCycle(cycle, matrix, minimum/* + bonusPen*/);
 
@@ -399,12 +603,12 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				for(int j : cycle){
 					if (remainingCols.get(j) && i != j) {
 						matrix[i][j] += k;
-						if (i == 23 && j == 20 || i == 20 && j == 23) {
+						/*if (i == 23 && j == 20 || i == 20 && j == 23) {
 							System.out.println("[CRITICAL-PENALIZE] cycle=" + cycle + " arc(" + i + "," + j + ") k=" + k
 									+ " newValue=" + matrix[i][j] + " worldindex=" + model.getEnvironment().getWorldIndex());
 						}
 						System.out.println("[PENALIZE] cycle=" + cycle + " i=" + i + " j=" + j
-								+ " k=" + k + " worldindex=" + model.getEnvironment().getWorldIndex());
+								+ " k=" + k + " worldindex=" + model.getEnvironment().getWorldIndex());*/
 					}
 				}
 			}
@@ -422,22 +626,22 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	private void updateMap(BitSet bs, Double value){
 		Double old = cycleMap.get(bs);
-		System.out.println("[UPDATEMAP-PRE] bs=" + bs + " currentMapValue=" + old
+		/*System.out.println("[UPDATEMAP-PRE] bs=" + bs + " currentMapValue=" + old
 				+ " delta=" + value + " expectedAfter=" + (old == null ? value : old + value)
 				+ " worldindex=" + model.getEnvironment().getWorldIndex()
-				+ " identityHash=" + System.identityHashCode(cycleMap));
+				+ " identityHash=" + System.identityHashCode(cycleMap));*/
 		model.getEnvironment().save(() -> {
 			if (old == null) cycleMap.remove(bs);
 			else cycleMap.put(bs, old);
 		});
 		cycleMap.merge(bs, value, Double::sum);
-		System.out.println("[UPDATEMAP-POST] bs=" + bs + " newMapValue=" + cycleMap.get(bs)
-				+ " worldindex=" + model.getEnvironment().getWorldIndex());
+		/*System.out.println("[UPDATEMAP-POST] bs=" + bs + " newMapValue=" + cycleMap.get(bs)
+				+ " worldindex=" + model.getEnvironment().getWorldIndex());*/
 		//cycleMap.put(bs, value);
 	}
 
 	private void removeMap(BitSet bs){
-		System.out.println("removeMap bs: " + bs.toString() +  "lb " + lowerBound + "worldindex " + model.getEnvironment().getWorldIndex());
+		//System.out.println("removeMap bs: " + bs.toString() +  "lb " + lowerBound + "worldindex " + model.getEnvironment().getWorldIndex());
 		Double old = cycleMap.get(bs);
 		if (old == null) return;
 		model.getEnvironment().save(() -> {
@@ -691,24 +895,24 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 					if(remainingRows.get(i)){
 						for (int j = bs.nextSetBit(0); j >= 0; j = bs.nextSetBit(j + 1)) {
 							if(remainingCols.get(j)){
-									 System.out.println("[UNDO-ENFORCE-APPLY] bs=" + bs + " i=" + i + " j=" + j
+								/*	 System.out.println("[UNDO-ENFORCE-APPLY] bs=" + bs + " i=" + i + " j=" + j
 								+ " penalty=" + penalty + " before=" + reducedCosts[i][j]
 								+ " worldindex=" + model.getEnvironment().getWorldIndex());
 								reducedCosts[i][j] += penalty;
 								System.out.println("[UNDO-ENFORCE-APPLY] bs=" + bs + " i=" + i + " j=" + j
-										+ " after=" + reducedCosts[i][j]);
+										+ " after=" + reducedCosts[i][j]);*/
 							}
 							else {
-								System.out.println("[UNDO-ENFORCE-SKIP-COL] bs=" + bs + " i=" + i + " j=" + j
+								/*System.out.println("[UNDO-ENFORCE-SKIP-COL] bs=" + bs + " i=" + i + " j=" + j
 										+ " penalty=" + penalty + " reason=colNotRemaining"
-										+ " worldindex=" + model.getEnvironment().getWorldIndex());
+										+ " worldindex=" + model.getEnvironment().getWorldIndex());*/
 							}
 						}
 					}
 					else {
-						System.out.println("[UNDO-ENFORCE-SKIP-ROW] bs=" + bs + " i=" + i
+						/*System.out.println("[UNDO-ENFORCE-SKIP-ROW] bs=" + bs + " i=" + i
 								+ " penalty=" + penalty + " reason=rowNotRemaining"
-								+ " worldindex=" + model.getEnvironment().getWorldIndex());
+								+ " worldindex=" + model.getEnvironment().getWorldIndex());*/
 					}
 				}
 
@@ -777,9 +981,9 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	public void propagate(int idVar, int evtMask) throws ContradictionException {
 		updateRemaining();
-		System.out.println("worldindex " + model.getEnvironment().getWorldIndex());
+		/*System.out.println("worldindex " + model.getEnvironment().getWorldIndex());
 		System.out.println("graph " + g.toString());
-		System.out.println("nremaining " + nRemaining);
+		System.out.println("nremaining " + nRemaining);*/
 		deltaMonitor.freeze();
 		try{
 			setReducedCostsFromState();
@@ -798,9 +1002,11 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 		logState();
 		removed = 0;
-		fusionRelaxationAsym();
+		justHungFW();
+		if(interleave){
+			fusionRelaxationAsym();
+		}
 		int a =3;
-
 
 		//propagate(evtMask);
 	}
@@ -829,7 +1035,10 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		lb = costVar.getLB();
 		reducedCosts = Arrays.stream(costs).map(double[]::clone).toArray(double[][]::new);
 		lowerBound = M*n;
-		fusionRelaxationAsym();
+		justHungFW();
+		if(interleave){
+			fusionRelaxationAsym();
+		}
 		if(getData){
 			getData = false;
 		}
@@ -936,6 +1145,58 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	}
 
 	double lbBegin = 0;
+
+	protected void justHungFW() throws ContradictionException{
+		iter++;
+		//System.out.println("start");
+		double maxLb;
+		maxLb = Double.NEGATIVE_INFINITY;
+		Result result = null;
+		int maxNonImprove = 1;
+		nbSprints = n;
+		int nonImprove = 0;
+		int i = 0;
+		lbBegin = lowerBound;
+		boolean shouldContinue = true;
+		int hungIters = 0;
+
+		//undoAllCycles();
+		result = hungarianIteration(reducedCosts);
+		lowerBound += result.lb;
+		reducedCosts = result.array;
+
+		basicFiltering(reducedCosts, lowerBound);
+
+		if (lowerBound - Math.floor(lowerBound) < 0.001) {
+			lowerBound = Math.floor(lowerBound);
+		}
+
+		try{
+			costVar.updateLowerBound((int) Math.ceil(maxLb), this);
+		}
+		catch(ContradictionException e) {
+			throw e;
+		}
+		//System.out.println(i);
+
+		result = hungarianSSP(reducedCosts);
+		lowerBound += result.lb;
+		reducedCosts = result.array;
+
+		logState();
+
+		if(interleave){
+			//undoAllCycles();
+		}
+
+		if((removed > 0)){
+			filterFloydWarshallNew(lowerBound, result.matching);
+		}
+
+		removed = 0;
+		boundDecreased = 0;
+	}
+
 	protected void fusionRelaxationAsym() throws ContradictionException {
 		iter++;
 		//System.out.println("start");
@@ -952,7 +1213,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 		//undoAllCycles();
 		while (shouldContinue && i < nbSprints && nonImprove < maxNonImprove){
-			if(false && interleave) {
+			if(false/*interleave*/) {
 				result = hungarianIteration(reducedCosts);
 				lowerBound += result.lb;
 				reducedCosts = result.array;
@@ -965,13 +1226,13 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 					int a =3;
 				}
 				if(result.lb > 0){
-					System.out.println("hungIter" + hungIters + " lbdiff " + result.lb);
-					System.out.println("lowerBound " + (lowerBound-M*n));
+					/*System.out.println("hungIter" + hungIters + " lbdiff " + result.lb);
+					System.out.println("lowerBound " + (lowerBound-M*n));*/
 				}
 				hungIters++;
 			}
 
-			basicFiltering(reducedCosts, lowerBound);
+			//basicFiltering(reducedCosts, lowerBound);
 			if (lowerBound > maxLb /*+ bonusPen*/) {
 				maxLb = lowerBound;
 				if (result.matching!= null){
@@ -985,7 +1246,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			//System.out.println(getNb2Cycles(result.matching));
 
 			if(hungIters == 1){
-				filterFloydWarshallNew(lowerBound, result.matching);
+				//filterFloydWarshallNew(lowerBound, result.matching);
 			}
 
 			if(interleave){
@@ -1009,12 +1270,13 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				}*/
 			}
 
-			System.out.println("lb before floor : " + lowerBound);
+			//System.out.println("lb before floor : " + lowerBound);
 			if (lowerBound - Math.floor(lowerBound) < 0.001) {
 				lowerBound = Math.floor(lowerBound);
 			}
-			System.out.println("lb after floor : " + lowerBound);
+			//System.out.println("lb after floor : " + lowerBound);
 
+			//System.out.println(maxLb - lbBegin);
 			try{
 				costVar.updateLowerBound((int) Math.ceil(maxLb), this);
 			}
@@ -1029,11 +1291,11 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			//filterBigReducedCosts(maxLb, bestReducedCosts);
 		}
 
-		result = hungarianSSP(reducedCosts);
+		/*result = hungarianSSP(reducedCosts);
 		lowerBound += result.lb;
 		reducedCosts = result.array;
 
-		logState();
+		//logState();
 
 		if(interleave){
 			//undoAllCycles();
@@ -1041,44 +1303,17 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 		//TODO put back here whats on top of interleave)
 
-		/*if(lowerBound > lbBegin){
-			System.out.println("lbImproved at iter " + iter);
-		}*/
 		if(removed > 0){
 		//	System.out.println("Before FW removed " + removed + " at iter " + iter);
 		}
 		//System.out.println("RealLowerBound : " + getRealLowerBound(result.zeros)+ " ReportedLowerBound : " + (lowerBound-M*n));
 		if((removed > 0)){
 			filterFloydWarshallNew(lowerBound, result.matching);
-			/*try{
-				costVar.updateLowerBound(getRealLowerBound(result.matching)+M*n, this);
-			}
-			catch(ContradictionException e) {
-				throw e;
-			}*/
-		}
+		}*/
 
-
-		if(lbBegin > lowerBound){
-		//System.out.println("After logState, lbBegin > lowerBound");
-		}
-		//filterBigReducedCosts(lowerBound, reducedCosts);
-
-		if(removed > 0){
-			if(lbBegin >= lowerBound){
-				//System.out.println("FILTERNOCHANGE");
-			}
-			//System.out.println("After FW removed " + removed + " at iter " + iter);
-		}
 		removed = 0;
 		boundDecreased = 0;
 		//count = 0;
-		if(maxLb > 5600) {
-			int a = 3;
-		}
-		if(iter <= 10){
-			//System.out.println(lowerBound - M*n);
-		}
 	}
 
 	private void logState() throws ContradictionException {
@@ -1114,7 +1349,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 						this.fails();
 					}
 				}
-				System.out.println("[FUSION][UPDATEREMAINING-ENFORCE] " + (i+n) + " -> " + neigh);
+				//System.out.println("[FUSION][UPDATEREMAINING-ENFORCE] " + (i+n) + " -> " + neigh);
 
 				if(i == 23){
 					int a =3;
@@ -1168,7 +1403,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 	// INFERENCE
 	//***********************************************************************************
 	public void remove(int from, int to) throws ContradictionException {
-		System.out.println("[FUSION][REMOVE] " + from + " -> " + to);
+		//System.out.println("[FUSION][REMOVE] " + from + " -> " + to);
 		removed++;
 		gV.removeArc(from, to, this);
 	}

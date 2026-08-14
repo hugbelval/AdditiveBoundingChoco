@@ -76,6 +76,7 @@ public class Main {
     //***********************************************************************************
 
 	private static GraphModel model;
+	private static int currentGraphSearch = GraphSearch.LEX;
 	private static IntVar totalCost;
 	private static UndirectedGraphVar graph;
 	private static DirectedGraphVar digraph;
@@ -88,7 +89,7 @@ public class Main {
 		//resultsFirstLB_vsSequencing();
 
 		//resultsMyMethod();true
-		//resultsTimeAndNodes_vsHeldKarp();
+		resultsTimeAndNodes_vsHeldKarp();
 
 		//randomLoop();
 		//resultsFirstLB();
@@ -159,10 +160,16 @@ public class Main {
 		String[] filenames = getATSPFilenames();
 		double[] fusionTime = new double[filenames.length];
 		double[] fusionNodeCount = new double[filenames.length];
+		double[] fusionTime2 = new double[filenames.length];
+		double[] fusionNodeCount2 = new double[filenames.length];
+
 		double[] benchTime = new double[filenames.length];
 		double[] benchNodeCount = new double[filenames.length];
+
 		double[] sequencingTime = new double[filenames.length];
 		double[] sequencingNodeCount = new double[filenames.length];
+		double[] sequencingTime2 = new double[filenames.length];
+		double[] sequencingNodeCount2 = new double[filenames.length];
 		for (int i = 0; i < filenames.length; i++){
 			int[][] data = getATSPInstance(filenames[i]);
 			System.out.println("-----------------" + filenames[i]);
@@ -172,14 +179,24 @@ public class Main {
 			int presolve = (int)getBestSol(filenames[i]); //9999999;
 			Solver resultsBench = heldKarp(jonker_matrix,presolve);
 			benchTime[i] = resultsBench.getTimeCount();
+			currentGraphSearch = GraphSearch.REDUCED_COST_HK;
 			Solver resultsSequencing = fusionAsymUndirected(jonker_matrix, presolve, false);
 			sequencingTime[i] = resultsSequencing.getTimeCount();
 			Solver resultsFusion = fusionAsymUndirected(jonker_matrix, presolve, true);
 			fusionTime[i] = resultsFusion.getTimeCount();
 
+			currentGraphSearch = GraphSearch.REDUCED_COST_INTERLEAVE;
+			Solver resultsSequencing2 = fusionAsymUndirected(jonker_matrix, presolve, false);
+			sequencingTime2[i] = resultsSequencing.getTimeCount();
+			Solver resultsFusion2 = fusionAsymUndirected(jonker_matrix, presolve, true);
+			fusionTime2[i] = resultsFusion.getTimeCount();
+
 			fusionNodeCount[i] = resultsFusion.getNodeCount();
 			benchNodeCount[i] = resultsBench.getNodeCount();
 			sequencingNodeCount[i] = resultsSequencing.getNodeCount();
+
+			sequencingNodeCount2[i] = resultsSequencing2.getNodeCount();
+			fusionNodeCount2[i] = resultsFusion2.getNodeCount();
 		}
 
 		try (BufferedWriter bw = new BufferedWriter(new FileWriter("src/HK+Me_vsJustHung.csv"))) {
@@ -190,11 +207,21 @@ public class Main {
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("Held-Karp+Entrelacer - temps," + Arrays.stream(fusionTime)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+
+			bw.write("Held-Karp+SequencerINTER - temps," + Arrays.stream(sequencingTime2)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("Held-Karp+EntrelacerINTER - temps," + Arrays.stream(fusionTime2)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+
 			bw.write("Held-Karp - noeuds," + Arrays.stream(benchNodeCount)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("Held-Karp+Sequencer - noeuds," + Arrays.stream(sequencingNodeCount)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 			bw.write("Held-Karp+Entrelacer - noeuds," + Arrays.stream(fusionNodeCount)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("Held-Karp+SequencerINTER - noeuds," + Arrays.stream(sequencingNodeCount2)
+					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
+			bw.write("Held-Karp+EntrelacerINTER - noeuds," + Arrays.stream(fusionNodeCount2)
 					.mapToObj(String::valueOf).collect(Collectors.joining(","))); bw.newLine();
 		}
 	}
@@ -378,8 +405,8 @@ public class Main {
 		return getDataFromProblem(problem);
 	}
 
-	//private static String FOLDER = "atsp/";
-	private static String FOLDER = "easy_atsp/";
+	private static String FOLDER = "atsp/";
+	//private static String FOLDER = "easy_atsp/";
 	private static int[][] getATSPInstance(String name) throws IOException {
 		org.moeaframework.problem.tsplib.TSPInstance problem = new TSPInstance(new File(FOLDER + "/" + name));
 		return getDataFromProblem(problem);
@@ -553,7 +580,7 @@ public class Main {
 		// constraints (TSP basic model + lagrangian relaxation)
 		hk = new PropLagr_OneTree(graph, totalCost, costMatrix);
 		model.tsp(graph, totalCost, costMatrix, 1, hk).post();
-		return search(costMatrix, true, GraphSearch.MAX_COST);
+		return search(costMatrix, true, GraphSearch.REDUCED_COST_HK);
 	}
 
 	private static Solver fusionAsymUndirected(int[][] costMatrix, int initialUB, boolean interleave){
@@ -567,7 +594,7 @@ public class Main {
 		//props[0] = ;
 		// constraints (TSP basic model + lagrangian relaxation)
 		model.tsp_general(graph, totalCost, costMatrix, props).post();
-		return search(costMatrix, true, GraphSearch.MAX_COST);
+		return search(costMatrix, true, currentGraphSearch);
 	}
 
 	private static Solver fusionBench(int[][] smallCostMatrix, int[][] bigCostMatrix, int initialUB){
