@@ -60,6 +60,7 @@ public class GraphSearch extends GraphStrategy {
 	public static final int MAX_COST = 8;
 	public static final int REDUCED_COST_HK= 9;
 	public static final int REDUCED_COST_INTERLEAVE = 10;
+	public static final int REDUCED_COST_INTERLEAVE_MIN = 11;
 
 	// variables
 	private int n;
@@ -71,6 +72,7 @@ public class GraphSearch extends GraphStrategy {
 	private int from, to;
 	private int value;
 	private boolean useLC;
+	private boolean isSelectedSol = false;
 	private int lastFrom = -1;
 
 	/**
@@ -116,6 +118,11 @@ public class GraphSearch extends GraphStrategy {
 	 * @param policy way to select arcs
 	 */
 	public GraphSearch configure(int policy) {
+		return configure(policy, true);
+	}
+
+	public GraphSearch configure(boolean isSelectedSol, int policy) {
+		this.isSelectedSol = true;
 		return configure(policy, true);
 	}
 
@@ -185,6 +192,12 @@ public class GraphSearch extends GraphStrategy {
 		}
 		for (int j : set) {
 			if (!g.getMandSuccOrNeighOf(i).contains(j)) {
+				boolean eligible = true;
+
+				if(isSelectedSol && this.interleave != null && interleave.bestMatching != null && !(i > n/2
+						&& interleave.bestMatching[i-n/2] == j)) {
+					eligible = false;
+				}
 				int v = -1;
 				switch (mode) {
 					case REDUCED_COST_HK:
@@ -221,6 +234,7 @@ public class GraphSearch extends GraphStrategy {
 						from = i;
 						to = j;
 					case MIN_P_DEGREE:
+					case REDUCED_COST_INTERLEAVE_MIN:
 					case MAX_P_DEGREE:
 						v = g.getPotSuccOrNeighOf(i).size()
 								+ g.getPotPredOrNeighOf(j).size();
@@ -244,7 +258,7 @@ public class GraphSearch extends GraphStrategy {
 					default:
 						throw new UnsupportedOperationException("mode " + mode + " does not exist");
 				}
-				if (select(v)) {
+				if (eligible && select(v)) {
 					value = v;
 					from = i;
 					to = j;

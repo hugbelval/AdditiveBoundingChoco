@@ -981,9 +981,10 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 
 	public void propagate(int idVar, int evtMask) throws ContradictionException {
 		updateRemaining();
-		/*System.out.println("worldindex " + model.getEnvironment().getWorldIndex());
-		System.out.println("graph " + g.toString());
-		System.out.println("nremaining " + nRemaining);*/
+		//System.out.println("worldindex " + model.getEnvironment().getWorldIndex());
+		//System.out.println("graph " + g.toString());
+		//System.out.println("nremaining " + nRemaining);
+		//System.out.println(model.getSolver().getDecisionPath());
 		deltaMonitor.freeze();
 		try{
 			setReducedCostsFromState();
@@ -1183,6 +1184,10 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		lowerBound += result.lb;
 		reducedCosts = result.array;
 
+		if (result.matching!= null){
+			bestMatching = result.matching;
+		}
+
 		logState();
 
 		if(interleave){
@@ -1232,7 +1237,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 				hungIters++;
 			}
 
-			//basicFiltering(reducedCosts, lowerBound);
+			basicFiltering(reducedCosts, lowerBound);
 			if (lowerBound > maxLb /*+ bonusPen*/) {
 				maxLb = lowerBound;
 				if (result.matching!= null){
@@ -1291,7 +1296,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 			//filterBigReducedCosts(maxLb, bestReducedCosts);
 		}
 
-		/*result = hungarianSSP(reducedCosts);
+		result = hungarianSSP(reducedCosts);
 		lowerBound += result.lb;
 		reducedCosts = result.array;
 
@@ -1309,7 +1314,7 @@ public class PropFusionAsymUndirectedGraphVar extends Propagator<Variable> {
 		//System.out.println("RealLowerBound : " + getRealLowerBound(result.zeros)+ " ReportedLowerBound : " + (lowerBound-M*n));
 		if((removed > 0)){
 			filterFloydWarshallNew(lowerBound, result.matching);
-		}*/
+		}
 
 		removed = 0;
 		boundDecreased = 0;
